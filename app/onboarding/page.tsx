@@ -15,7 +15,7 @@ export default async function OnboardingPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("phone, business_name")
+    .select("phone")
     .eq("id", user.id)
     .single();
 
@@ -33,11 +33,9 @@ export default async function OnboardingPage() {
             One last step
           </h1>
           <p className="text-sm text-muted mb-5">
-            Add your details so customer emails come from the right place.
+            Add your mobile number so you can text customers right from a job.
           </p>
-          <OnboardingForm
-            defaultBusinessName={profile?.business_name ?? undefined}
-          />
+          <OnboardingForm />
         </div>
       </div>
     </div>

@@ -5,9 +5,11 @@ import Recorder from "@/components/Recorder";
 import SignOutButton from "@/components/SignOutButton";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import type { Template } from "@/lib/types";
 
 export default async function Home() {
   let authed = false;
+  let templates: Template[] = [];
 
   // Once Supabase is configured, the app requires a verified account with a
   // phone number. Until then it stays open so the core loop is demoable.
@@ -25,6 +27,12 @@ export default async function Home() {
       .single();
     if (!profile?.phone) redirect("/onboarding");
 
+    const { data: tpls } = await supabase
+      .from("templates")
+      .select("id, name, content")
+      .order("created_at", { ascending: false });
+    templates = tpls ?? [];
+
     authed = true;
   }
 
@@ -36,10 +44,16 @@ export default async function Home() {
           {authed ? (
             <div className="flex items-center gap-4">
               <Link
+                href="/templates"
+                className="text-xs font-medium text-muted hover:text-foreground transition"
+              >
+                Templates
+              </Link>
+              <Link
                 href="/notes"
                 className="text-xs font-medium text-muted hover:text-foreground transition"
               >
-                History
+                Archive
               </Link>
               <SignOutButton />
             </div>
@@ -54,16 +68,16 @@ export default async function Home() {
       <main className="flex-1 w-full max-w-3xl mx-auto px-5 py-10 sm:py-14">
         <div className="text-center mb-10">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            Finish the job. Talk it out.
+            Congrats on finishing the job!
           </h1>
-          <p className="mt-2 text-muted max-w-md mx-auto">
-            Record a quick voice note from the truck. TechTalk transcribes it,
-            pulls out the parts and next steps, and writes the customer update
-            for you.
+          <p className="mt-2 text-muted max-w-lg mx-auto">
+            Record a quick voice note from wherever you are. TechTalk transcribes
+            it, converts it into a detailed note, fills out any of your
+            templates, and writes a customer update email or text for you.
           </p>
         </div>
 
-        <Recorder canSave={authed} />
+        <Recorder canSave={authed} templates={templates} />
       </main>
 
       <footer className="w-full border-t border-border py-6 text-center text-xs text-muted">

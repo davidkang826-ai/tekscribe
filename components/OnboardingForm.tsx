@@ -3,11 +3,7 @@
 import { useActionState } from "react";
 import { saveProfile, type AuthState } from "@/lib/supabase/actions";
 
-export default function OnboardingForm({
-  defaultBusinessName,
-}: {
-  defaultBusinessName?: string;
-}) {
+export default function OnboardingForm() {
   const [state, formAction, pending] = useActionState<AuthState, FormData>(
     saveProfile,
     {}
@@ -20,18 +16,6 @@ export default function OnboardingForm({
           {state.error}
         </div>
       )}
-      <div>
-        <label className="block text-xs font-medium text-muted mb-1">
-          Business name
-        </label>
-        <input
-          name="business_name"
-          type="text"
-          defaultValue={defaultBusinessName}
-          placeholder="Mike's Plumbing"
-          className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-        />
-      </div>
       <div>
         <label className="block text-xs font-medium text-muted mb-1">
           Mobile phone

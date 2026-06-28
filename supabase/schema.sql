@@ -26,15 +26,16 @@ drop policy if exists "own profile - update" on public.profiles;
 create policy "own profile - update" on public.profiles
   for update using (auth.uid() = id);
 
--- Auto-create a profile row whenever a new auth user is created.
+-- Auto-create a profile row whenever a new auth user is created. Carries the
+-- business name captured at signup so we never ask for it again at onboarding.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer set search_path = public
 as $$
 begin
-  insert into public.profiles (id)
-  values (new.id)
+  insert into public.profiles (id, business_name)
+  values (new.id, nullif(new.raw_user_meta_data->>'business_name', ''))
   on conflict (id) do nothing;
   return new;
 end;
@@ -79,3 +80,36 @@ create policy "own notes - delete" on public.voice_notes
 
 create index if not exists voice_notes_user_created_idx
   on public.voice_notes (user_id, created_at desc);
+
+-- ---------------------------------------------------------------------------
+-- templates: reusable documents (invoice, work order, inspection report...)
+-- that the AI fills out from the spoken note. Owned per technician.
+-- ---------------------------------------------------------------------------
+create table if not exists public.templates (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  name text not null,
+  content text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.templates enable row level security;
+
+drop policy if exists "own templates - select" on public.templates;
+create policy "own templates - select" on public.templates
+  for select using (auth.uid() = user_id);
+
+drop policy if exists "own templates - insert" on public.templates;
+create policy "own templates - insert" on public.templates
+  for insert with check (auth.uid() = user_id);
+
+drop policy if exists "own templates - update" on public.templates;
+create policy "own templates - update" on public.templates
+  for update using (auth.uid() = user_id);
+
+drop policy if exists "own templates - delete" on public.templates;
+create policy "own templates - delete" on public.templates
+  for delete using (auth.uid() = user_id);
+
+create index if not exists templates_user_created_idx
+  on public.templates (user_id, created_at desc);

@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { LogoMark } from "./Logo";
 import SendToCustomer from "./SendToCustomer";
 import { saveNote } from "@/lib/supabase/notes";
-import type { JobSummary } from "@/lib/types";
+import type { JobSummary, Template } from "@/lib/types";
 
 type Phase = "idle" | "recording" | "transcribing" | "ready" | "summarizing";
 
@@ -14,7 +14,13 @@ function formatTime(s: number) {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
-export default function Recorder({ canSave = false }: { canSave?: boolean }) {
+export default function Recorder({
+  canSave = false,
+  templates = [],
+}: {
+  canSave?: boolean;
+  templates?: Template[];
+}) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [elapsed, setElapsed] = useState(0);
   const [transcript, setTranscript] = useState("");
@@ -23,6 +29,10 @@ export default function Recorder({ canSave = false }: { canSave?: boolean }) {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
     "idle"
   );
+  const [templateId, setTemplateId] = useState<string>("");
+  const [filling, setFilling] = useState(false);
+  const [filled, setFilled] = useState<string | null>(null);
+  const [filledCopied, setFilledCopied] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -39,6 +49,7 @@ export default function Recorder({ canSave = false }: { canSave?: boolean }) {
     setTranscript("");
     setSummary(null);
     setSaveState("idle");
+    setFilled(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -123,6 +134,43 @@ export default function Recorder({ canSave = false }: { canSave?: boolean }) {
       setSaveState("idle");
     } else {
       setSaveState("saved");
+    }
+  }
+
+  async function fillTemplate() {
+    const template = templates.find((t) => t.id === templateId);
+    if (!template) return;
+    setFilling(true);
+    setFilled(null);
+    setError(null);
+    try {
+      const res = await fetch("/api/fill-template", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transcript,
+          summary,
+          templateContent: template.content,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Template fill failed.");
+      setFilled(data.filled as string);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Template fill failed.");
+    } finally {
+      setFilling(false);
+    }
+  }
+
+  async function copyFilled() {
+    if (!filled) return;
+    try {
+      await navigator.clipboard.writeText(filled);
+      setFilledCopied(true);
+      setTimeout(() => setFilledCopied(false), 2000);
+    } catch {
+      // ignore
     }
   }
 
@@ -217,7 +265,7 @@ export default function Recorder({ canSave = false }: { canSave?: boolean }) {
               onClick={startRecording}
               className="inline-flex items-center gap-2 rounded-lg bg-surface px-4 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 transition"
             >
-              ↻ Record again
+              🗑 Delete & record again
             </button>
           </div>
         </div>
@@ -255,6 +303,55 @@ export default function Recorder({ canSave = false }: { canSave?: boolean }) {
           )}
 
           <SendToCustomer summary={summary} />
+        </div>
+      )}
+
+      {/* Fill a saved template from this note */}
+      {phase === "ready" && transcript && templates.length > 0 && (
+        <div className="mt-6 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm">
+          <div className="text-xs font-semibold uppercase tracking-wide text-accent-600 mb-3">
+            Fill a template
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <select
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+              className="flex-1 min-w-[180px] rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+            >
+              <option value="">Choose a template…</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={fillTemplate}
+              disabled={!templateId || filling}
+              className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
+            >
+              {filling ? "Filling…" : "✨ Auto-fill"}
+            </button>
+          </div>
+
+          {filled && (
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted">
+                  Filled template
+                </span>
+                <button
+                  onClick={copyFilled}
+                  className="text-xs font-medium text-brand hover:underline"
+                >
+                  {filledCopied ? "✓ Copied" : "Copy"}
+                </button>
+              </div>
+              <pre className="whitespace-pre-wrap rounded-xl border border-border bg-slate-50 p-4 text-[14px] leading-relaxed text-foreground font-sans">
+                {filled}
+              </pre>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -3,49 +3,74 @@
 import { useMemo, useState } from "react";
 import type { JobSummary } from "@/lib/types";
 
-/** Builds a clean, customer-friendly email body from the AI summary. */
+type Channel = "email" | "text";
+
+/** Full, formatted body for email. */
 function buildEmailBody(summary: JobSummary): string {
   const lines: string[] = [];
-
-  if (summary.customerMessage) {
-    lines.push(summary.customerMessage, "");
-  }
-
+  if (summary.customerMessage) lines.push(summary.customerMessage, "");
   if (summary.workDone.length) {
     lines.push("What we did:");
     for (const item of summary.workDone) lines.push(`• ${item}`);
     lines.push("");
   }
-
   if (summary.nextSteps.length) {
     lines.push("Next steps:");
     for (const item of summary.nextSteps) lines.push(`• ${item}`);
     lines.push("");
   }
-
   lines.push("Thank you for your business.");
   return lines.join("\n");
 }
 
+/** Shorter body for a text message — texts should be skimmable. */
+function buildSmsBody(summary: JobSummary): string {
+  const lines: string[] = [];
+  if (summary.customerMessage) lines.push(summary.customerMessage);
+  if (summary.nextSteps.length) {
+    lines.push("", "Next steps:");
+    for (const item of summary.nextSteps) lines.push(`- ${item}`);
+  }
+  return lines.join("\n");
+}
+
 export default function SendToCustomer({ summary }: { summary: JobSummary }) {
+  const [channel, setChannel] = useState<Channel>("email");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [subject, setSubject] = useState(
     `Summary of your service visit — ${summary.jobTitle}`
   );
   const [copied, setCopied] = useState(false);
 
-  const body = useMemo(() => buildEmailBody(summary), [summary]);
-
-  const mailtoHref = useMemo(() => {
-    const params = new URLSearchParams({ subject, body });
-    return `mailto:${encodeURIComponent(email)}?${params.toString()}`;
-  }, [email, subject, body]);
+  const emailBody = useMemo(() => buildEmailBody(summary), [summary]);
+  const smsBody = useMemo(() => buildSmsBody(summary), [summary]);
 
   const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  // Need at least 10 digits for a real phone number.
+  const phoneDigits = phone.replace(/[^\d+]/g, "");
+  const validPhone = phoneDigits.replace(/\D/g, "").length >= 10;
+
+  const mailtoHref = useMemo(() => {
+    const params = new URLSearchParams({ subject, body: emailBody });
+    return `mailto:${encodeURIComponent(email)}?${params.toString()}`;
+  }, [email, subject, emailBody]);
+
+  // `sms:NUMBER?&body=...` is the cross-platform form that works on both
+  // iOS and Android (opens Messages with the text prefilled).
+  const smsHref = useMemo(
+    () => `sms:${phoneDigits}?&body=${encodeURIComponent(smsBody)}`,
+    [phoneDigits, smsBody]
+  );
+
+  const isEmail = channel === "email";
+  const valid = isEmail ? validEmail : validPhone;
+  const href = isEmail ? mailtoHref : smsHref;
 
   async function copyAll() {
+    const text = isEmail ? `Subject: ${subject}\n\n${emailBody}` : smsBody;
     try {
-      await navigator.clipboard.writeText(`Subject: ${subject}\n\n${body}`);
+      await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -59,54 +84,90 @@ export default function SendToCustomer({ summary }: { summary: JobSummary }) {
         Send to customer
       </div>
 
-      <div className="space-y-3">
-        <div>
-          <label className="block text-xs text-muted mb-1">Customer email</label>
-          <input
-            type="email"
-            inputMode="email"
-            autoCapitalize="off"
-            autoCorrect="off"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="customer@example.com"
-            className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-          />
-        </div>
+      {/* Channel toggle */}
+      <div className="inline-flex rounded-lg bg-slate-100 p-1 mb-3">
+        {(["email", "text"] as Channel[]).map((c) => (
+          <button
+            key={c}
+            onClick={() => setChannel(c)}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${
+              channel === c
+                ? "bg-surface text-foreground shadow-sm"
+                : "text-muted hover:text-foreground"
+            }`}
+          >
+            {c === "email" ? "✉️ Email" : "💬 Text"}
+          </button>
+        ))}
+      </div>
 
-        <div>
-          <label className="block text-xs text-muted mb-1">Subject</label>
-          <input
-            type="text"
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-          />
-        </div>
+      <div className="space-y-3">
+        {isEmail ? (
+          <>
+            <div>
+              <label className="block text-xs text-muted mb-1">
+                Customer email
+              </label>
+              <input
+                type="email"
+                inputMode="email"
+                autoCapitalize="off"
+                autoCorrect="off"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="customer@example.com"
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted mb-1">Subject</label>
+              <input
+                type="text"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+              />
+            </div>
+          </>
+        ) : (
+          <div>
+            <label className="block text-xs text-muted mb-1">
+              Customer mobile number
+            </label>
+            <input
+              type="tel"
+              inputMode="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="(617) 555-0123"
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+            />
+          </div>
+        )}
 
         <details className="rounded-lg bg-slate-50 px-3 py-2.5">
           <summary className="text-xs text-muted cursor-pointer select-none">
-            Preview email body
+            Preview message
           </summary>
           <pre className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-foreground font-sans">
-            {body}
+            {isEmail ? emailBody : smsBody}
           </pre>
         </details>
 
         <div className="flex flex-wrap gap-3 pt-1">
           <a
-            href={validEmail ? mailtoHref : undefined}
-            aria-disabled={!validEmail}
+            href={valid ? href : undefined}
+            aria-disabled={!valid}
             onClick={(e) => {
-              if (!validEmail) e.preventDefault();
+              if (!valid) e.preventDefault();
             }}
             className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 font-medium text-sm shadow-sm transition ${
-              validEmail
+              valid
                 ? "bg-brand text-white hover:bg-brand-600"
                 : "bg-slate-200 text-slate-400 cursor-not-allowed"
             }`}
           >
-            ✉️ Open in email app
+            {isEmail ? "✉️ Open in email app" : "💬 Open in Messages"}
           </a>
           <button
             onClick={copyAll}
@@ -116,8 +177,9 @@ export default function SendToCustomer({ summary }: { summary: JobSummary }) {
           </button>
         </div>
         <p className="text-xs text-muted">
-          Opens your phone&apos;s mail app with everything filled in — sent from
-          your own address. Just hit send.
+          {isEmail
+            ? "Opens your mail app with everything filled in — sent from your own address. Just hit send."
+            : "Opens your phone's Messages app with the text filled in — sent from your own number. Just hit send."}
         </p>
       </div>
     </div>

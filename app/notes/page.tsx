@@ -51,9 +51,7 @@ export default async function NotesPage() {
       </header>
 
       <main className="flex-1 w-full max-w-3xl mx-auto px-5 py-10">
-        <h1 className="text-xl font-semibold text-foreground mb-6">
-          Job history
-        </h1>
+        <h1 className="text-xl font-semibold text-foreground mb-6">Archive</h1>
 
         {rows.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-surface p-10 text-center text-muted">

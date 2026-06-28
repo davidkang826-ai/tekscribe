@@ -65,7 +65,6 @@ export async function saveProfile(
   formData: FormData
 ): Promise<AuthState> {
   const phone = String(formData.get("phone") ?? "").trim();
-  const businessName = String(formData.get("business_name") ?? "").trim();
 
   if (!phone) return { error: "Please enter your phone number." };
 
@@ -77,7 +76,7 @@ export async function saveProfile(
 
   const { error } = await supabase
     .from("profiles")
-    .update({ phone, business_name: businessName || null })
+    .update({ phone })
     .eq("id", user.id);
 
   if (error) return { error: error.message };
