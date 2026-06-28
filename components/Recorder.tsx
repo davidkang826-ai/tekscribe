@@ -73,6 +73,8 @@ export default function Recorder({
   const [noteId, setNoteId] = useState<string | null>(null);
   const [writingDone, setWritingDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Where to return to if the user cancels a delete.
+  const [returnPhase, setReturnPhase] = useState<Phase>("transcript");
 
   // Template filling
   const [templateId, setTemplateId] = useState("");
@@ -98,6 +100,11 @@ export default function Recorder({
     setError(null);
     setTemplateId("");
     setFilled(null);
+  };
+
+  const askDelete = (from: Phase) => {
+    setReturnPhase(from);
+    setPhase("confirmDelete");
   };
 
   const startRecording = useCallback(async () => {
@@ -303,19 +310,19 @@ export default function Recorder({
           )}
 
           {/* Phase-specific actions */}
-          <div className="mt-3 flex flex-wrap gap-3">
+          <div className="mt-4 flex flex-wrap justify-center gap-4">
             {phase === "transcript" && (
               <>
                 <button
                   onClick={handleSave}
                   disabled={!transcript.trim()}
-                  className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
+                  className="inline-flex items-center gap-2 rounded-xl bg-brand px-8 py-3.5 text-white font-semibold text-base shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
                 >
                   💾 Save
                 </button>
                 <button
-                  onClick={() => setPhase("confirmDelete")}
-                  className="inline-flex items-center gap-2 rounded-lg bg-surface px-4 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 transition"
+                  onClick={() => askDelete("transcript")}
+                  className="inline-flex items-center gap-2 rounded-xl bg-surface px-8 py-3.5 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
                 >
                   🗑 Delete
                 </button>
@@ -326,13 +333,13 @@ export default function Recorder({
               <>
                 <button
                   onClick={handleSummarize}
-                  className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 transition"
+                  className="inline-flex items-center gap-2 rounded-xl bg-brand px-8 py-3.5 text-white font-semibold text-base shadow-sm hover:bg-brand-600 transition"
                 >
                   ✨ Summarize with AI?
                 </button>
                 <button
-                  onClick={() => setPhase("confirmDelete")}
-                  className="inline-flex items-center gap-2 rounded-lg bg-surface px-4 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 transition"
+                  onClick={() => askDelete("saved")}
+                  className="inline-flex items-center gap-2 rounded-xl bg-surface px-8 py-3.5 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
                 >
                   🗑 Delete
                 </button>
@@ -354,26 +361,32 @@ export default function Recorder({
         <div className="mt-4 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm text-center">
           <p className="text-foreground font-medium">Delete this note?</p>
           <p className="text-sm text-muted mt-1 mb-4">
-            This can&apos;t be undone.
+            Pressed it by accident? Just go back.
           </p>
-          <div className="flex justify-center gap-3">
+          <div className="flex flex-wrap justify-center gap-3">
             <button
-              onClick={() => {
-                resetAll();
-                setPhase("idle");
-              }}
-              className="inline-flex items-center gap-2 rounded-lg bg-surface px-5 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 transition"
+              onClick={() => setPhase(returnPhase)}
+              className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 transition"
             >
-              Exit
+              ← Go back
             </button>
             <button
               onClick={() => {
                 resetAll();
                 startRecording();
               }}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 transition"
+              className="inline-flex items-center gap-2 rounded-lg bg-surface px-5 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 transition"
             >
               🎙 Record again
+            </button>
+            <button
+              onClick={() => {
+                resetAll();
+                setPhase("idle");
+              }}
+              className="inline-flex items-center gap-2 rounded-lg bg-surface px-5 py-2.5 text-danger font-medium text-sm ring-1 ring-border hover:bg-red-50 transition"
+            >
+              Exit
             </button>
           </div>
         </div>
@@ -468,7 +481,7 @@ export default function Recorder({
 
               <div className="mt-5 border-t border-border pt-4">
                 <button
-                  onClick={() => setPhase("confirmDelete")}
+                  onClick={() => askDelete("summarized")}
                   className="text-sm font-medium text-muted hover:text-danger transition"
                 >
                   🗑 Delete &amp; start over

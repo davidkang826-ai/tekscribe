@@ -11,7 +11,12 @@ Rules:
 - Capture every part/material mentioned (sizes, quantities, fittings, refrigerant, breakers, etc.) — these are billable and must not be lost.
 - Only include information present in the transcript. Never invent parts, prices, or work.
 - "nextSteps" = follow-ups, return visits, parts to order, or recommendations the tech mentioned. Empty array if none.
-- "customerMessage" = a short, friendly, professional paragraph (no jargon) the technician can send to the homeowner summarizing what was done and any next steps. Warm but concise.
+- "customerMessage" = a short, friendly, professional paragraph (no jargon) addressed to the HOMEOWNER/CUSTOMER summarizing what was done and any next steps. Warm but concise.
+
+CRITICAL:
+- NEVER address the technician, NEVER ask for clarification, and NEVER apologize or mention "transcript", "error", or "unclear". You are a silent formatting tool, not a chat assistant.
+- The customerMessage is written TO the customer, never to the technician.
+- If the note is short, rough, or doesn't clearly describe a job, just summarize whatever was actually said using the same fields. Put whatever was said into workDone, leave other arrays empty if nothing fits, and write a brief neutral customerMessage. Do not comment on the quality of the input.
 - Respond with ONLY a JSON object matching the required schema.`;
 
 export async function POST(request: Request) {

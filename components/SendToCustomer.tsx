@@ -176,11 +176,19 @@ export default function SendToCustomer({ summary }: { summary: JobSummary }) {
             {copied ? "✓ Copied" : "Copy text"}
           </button>
         </div>
-        <p className="text-xs text-muted">
-          {isEmail
-            ? "Opens your mail app with everything filled in — sent from your own address. Just hit send."
-            : "Opens your phone's Messages app with the text filled in — sent from your own number. Just hit send."}
-        </p>
+        {!valid ? (
+          <p className="text-xs text-accent-600">
+            {isEmail
+              ? "Enter the customer's email above to enable sending."
+              : "Enter the customer's mobile number above to enable sending."}
+          </p>
+        ) : (
+          <p className="text-xs text-muted">
+            {isEmail
+              ? "Opens your mail app with everything filled in, sent from your own address — just hit send. (On a phone this is your Mail app; on a computer it uses your default email program. No mail app set up? Use “Copy text.”)"
+              : "Opens your phone's Messages app with the text filled in, sent from your own number — just hit send. (Texting works from a phone; on a computer, use “Copy text.”)"}
+          </p>
+        )}
       </div>
     </div>
   );
