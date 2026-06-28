@@ -6,7 +6,15 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
-    const form = await request.formData();
+    let form: FormData;
+    try {
+      form = await request.formData();
+    } catch {
+      return Response.json(
+        { error: "Expected multipart form data with an 'audio' file." },
+        { status: 400 }
+      );
+    }
     const file = form.get("audio");
 
     if (!(file instanceof File) || file.size === 0) {

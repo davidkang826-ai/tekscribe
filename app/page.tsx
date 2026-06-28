@@ -1,15 +1,53 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import Recorder from "@/components/Recorder";
+import SignOutButton from "@/components/SignOutButton";
+import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 
-export default function Home() {
+export default async function Home() {
+  let authed = false;
+
+  // Once Supabase is configured, the app requires a verified account with a
+  // phone number. Until then it stays open so the core loop is demoable.
+  if (isSupabaseConfigured) {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) redirect("/login");
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("phone")
+      .eq("id", user.id)
+      .single();
+    if (!profile?.phone) redirect("/onboarding");
+
+    authed = true;
+  }
+
   return (
     <div className="min-h-full flex flex-col">
       <header className="w-full border-b border-border bg-surface/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-5 h-16 flex items-center justify-between">
           <Logo size={30} />
-          <span className="text-xs font-medium text-muted">
-            for field-service pros
-          </span>
+          {authed ? (
+            <div className="flex items-center gap-4">
+              <Link
+                href="/notes"
+                className="text-xs font-medium text-muted hover:text-foreground transition"
+              >
+                History
+              </Link>
+              <SignOutButton />
+            </div>
+          ) : (
+            <span className="text-xs font-medium text-muted">
+              for field-service pros
+            </span>
+          )}
         </div>
       </header>
 
@@ -25,7 +63,7 @@ export default function Home() {
           </p>
         </div>
 
-        <Recorder />
+        <Recorder canSave={authed} />
       </main>
 
       <footer className="w-full border-t border-border py-6 text-center text-xs text-muted">

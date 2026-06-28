@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { LogoMark } from "./Logo";
 import SendToCustomer from "./SendToCustomer";
+import { saveNote } from "@/lib/supabase/notes";
 import type { JobSummary } from "@/lib/types";
 
 type Phase = "idle" | "recording" | "transcribing" | "ready" | "summarizing";
@@ -13,12 +14,15 @@ function formatTime(s: number) {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
-export default function Recorder() {
+export default function Recorder({ canSave = false }: { canSave?: boolean }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [elapsed, setElapsed] = useState(0);
   const [transcript, setTranscript] = useState("");
   const [summary, setSummary] = useState<JobSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
+    "idle"
+  );
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -34,6 +38,7 @@ export default function Recorder() {
     setError(null);
     setTranscript("");
     setSummary(null);
+    setSaveState("idle");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -101,10 +106,23 @@ export default function Recorder() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Summarization failed.");
       setSummary(data.summary as JobSummary);
+      setSaveState("idle");
       setPhase("ready");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Summarization failed.");
       setPhase("ready");
+    }
+  }
+
+  async function handleSave() {
+    setSaveState("saving");
+    setError(null);
+    const result = await saveNote({ transcript, summary });
+    if (result.error) {
+      setError(result.error);
+      setSaveState("idle");
+    } else {
+      setSaveState("saved");
     }
   }
 
@@ -167,7 +185,10 @@ export default function Recorder() {
           </label>
           <textarea
             value={transcript}
-            onChange={(e) => setTranscript(e.target.value)}
+            onChange={(e) => {
+              setTranscript(e.target.value);
+              setSaveState("idle");
+            }}
             rows={5}
             className="w-full rounded-xl border border-border bg-surface p-4 text-foreground text-[15px] leading-relaxed shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
           />
@@ -179,6 +200,19 @@ export default function Recorder() {
             >
               {phase === "summarizing" ? "Summarizing…" : "✨ Summarize with AI"}
             </button>
+            {canSave && (
+              <button
+                onClick={handleSave}
+                disabled={saveState !== "idle" || !transcript.trim()}
+                className="inline-flex items-center gap-2 rounded-lg bg-surface px-4 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 disabled:opacity-60 transition"
+              >
+                {saveState === "saving"
+                  ? "Saving…"
+                  : saveState === "saved"
+                    ? "✓ Saved"
+                    : "💾 Save note"}
+              </button>
+            )}
             <button
               onClick={startRecording}
               className="inline-flex items-center gap-2 rounded-lg bg-surface px-4 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 transition"
