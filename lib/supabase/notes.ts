@@ -33,3 +33,24 @@ export async function saveNote(input: {
   if (error) return { error: error.message };
   return { id: data.id };
 }
+
+/** Attach the AI summary to an already-saved note (Save happens before Summarize). */
+export async function updateNoteSummary(
+  id: string,
+  summary: JobSummary
+): Promise<SaveResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "You need to be signed in." };
+
+  const { error } = await supabase
+    .from("voice_notes")
+    .update({ summary, job_title: summary.jobTitle })
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (error) return { error: error.message };
+  return { id };
+}

@@ -1,17 +1,62 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { LogoMark } from "./Logo";
 import SendToCustomer from "./SendToCustomer";
-import { saveNote } from "@/lib/supabase/notes";
+import { saveNote, updateNoteSummary } from "@/lib/supabase/notes";
 import type { JobSummary, Template } from "@/lib/types";
 
-type Phase = "idle" | "recording" | "transcribing" | "ready" | "summarizing";
+type Phase =
+  | "idle"
+  | "recording"
+  | "transcribing"
+  | "transcript" // raw transcript shown: Save / Delete
+  | "saved" // transcript saved: Summarize? / Delete
+  | "summarizing" // calling the AI
+  | "summarized" // AI summary (writes in live), then send options
+  | "confirmDelete"; // Exit / Record again
 
 function formatTime(s: number) {
   const m = Math.floor(s / 60);
   const sec = s % 60;
   return `${m}:${sec.toString().padStart(2, "0")}`;
+}
+
+/** Types text out character-by-character with a blinking cursor. */
+function Typewriter({
+  text,
+  speed = 14,
+  onDone,
+}: {
+  text: string;
+  speed?: number;
+  onDone?: () => void;
+}) {
+  const [n, setN] = useState(0);
+  const doneRef = useRef(false);
+
+  useEffect(() => {
+    setN(0);
+    doneRef.current = false;
+  }, [text]);
+
+  useEffect(() => {
+    if (n < text.length) {
+      const id = setTimeout(() => setN((v) => v + 1), speed);
+      return () => clearTimeout(id);
+    }
+    if (!doneRef.current && text.length > 0) {
+      doneRef.current = true;
+      onDone?.();
+    }
+  }, [n, text, speed, onDone]);
+
+  return (
+    <span>
+      {text.slice(0, n)}
+      {n < text.length && <span className="tt-cursor">▍</span>}
+    </span>
+  );
 }
 
 export default function Recorder({
@@ -25,11 +70,12 @@ export default function Recorder({
   const [elapsed, setElapsed] = useState(0);
   const [transcript, setTranscript] = useState("");
   const [summary, setSummary] = useState<JobSummary | null>(null);
+  const [noteId, setNoteId] = useState<string | null>(null);
+  const [writingDone, setWritingDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
-    "idle"
-  );
-  const [templateId, setTemplateId] = useState<string>("");
+
+  // Template filling
+  const [templateId, setTemplateId] = useState("");
   const [filling, setFilling] = useState(false);
   const [filled, setFilled] = useState<string | null>(null);
   const [filledCopied, setFilledCopied] = useState(false);
@@ -44,12 +90,18 @@ export default function Recorder({
     timerRef.current = null;
   };
 
-  const startRecording = useCallback(async () => {
-    setError(null);
+  const resetAll = () => {
     setTranscript("");
     setSummary(null);
-    setSaveState("idle");
+    setNoteId(null);
+    setWritingDone(false);
+    setError(null);
+    setTemplateId("");
     setFilled(null);
+  };
+
+  const startRecording = useCallback(async () => {
+    resetAll();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -98,14 +150,24 @@ export default function Recorder({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Transcription failed.");
       setTranscript(data.text || "");
-      setPhase("ready");
+      setPhase("transcript");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Transcription failed.");
       setPhase("idle");
     }
   }
 
-  async function summarize() {
+  async function handleSave() {
+    setError(null);
+    setPhase("saved");
+    if (canSave) {
+      const result = await saveNote({ transcript, summary: null });
+      if (result.error) setError(result.error);
+      else setNoteId(result.id ?? null);
+    }
+  }
+
+  async function handleSummarize() {
     setError(null);
     setPhase("summarizing");
     try {
@@ -117,23 +179,13 @@ export default function Recorder({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Summarization failed.");
       setSummary(data.summary as JobSummary);
-      setSaveState("idle");
-      setPhase("ready");
+      setWritingDone(false);
+      setPhase("summarized");
+      // Attach the summary to the saved note in the background.
+      if (noteId) updateNoteSummary(noteId, data.summary as JobSummary);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Summarization failed.");
-      setPhase("ready");
-    }
-  }
-
-  async function handleSave() {
-    setSaveState("saving");
-    setError(null);
-    const result = await saveNote({ transcript, summary });
-    if (result.error) {
-      setError(result.error);
-      setSaveState("idle");
-    } else {
-      setSaveState("saved");
+      setPhase("saved");
     }
   }
 
@@ -175,49 +227,52 @@ export default function Recorder({
   }
 
   const isRecording = phase === "recording";
-  const isBusy = phase === "transcribing" || phase === "summarizing";
+  const showButton =
+    phase === "idle" || phase === "recording" || phase === "transcribing";
 
-  const statusText: Record<Phase, string> = {
+  const statusText: Record<string, string> = {
     idle: "Tap to record your job note",
     recording: "Listening… tap to stop",
     transcribing: "Transcribing…",
-    ready: "Review your note below",
-    summarizing: "Summarizing…",
   };
 
   return (
     <div className="flex flex-col items-center w-full max-w-xl mx-auto">
-      {/* Record button */}
-      <button
-        onClick={isRecording ? stopRecording : startRecording}
-        disabled={isBusy}
-        className="relative flex items-center justify-center w-44 h-44 rounded-full disabled:opacity-60 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-brand/30"
-        aria-label={isRecording ? "Stop recording" : "Start recording"}
-      >
-        {isRecording && (
-          <>
-            <span className="absolute inset-0 rounded-full bg-brand/20 tt-ring" />
-            <span className="absolute inset-2 rounded-full bg-brand/20 tt-ring [animation-delay:0.5s]" />
-          </>
-        )}
-        <span
-          className={`relative flex items-center justify-center w-36 h-36 rounded-full bg-surface shadow-lg ring-1 ring-border ${
-            isRecording ? "tt-pulse" : ""
-          }`}
-        >
-          <LogoMark size={84} />
-        </span>
-      </button>
+      {/* Record button — only while idle/recording/transcribing */}
+      {showButton && (
+        <>
+          <button
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={phase === "transcribing"}
+            className="relative flex items-center justify-center w-44 h-44 rounded-full disabled:opacity-60 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-brand/30"
+            aria-label={isRecording ? "Stop recording" : "Start recording"}
+          >
+            {isRecording && (
+              <>
+                <span className="absolute inset-0 rounded-full bg-brand/20 tt-ring" />
+                <span className="absolute inset-2 rounded-full bg-brand/20 tt-ring [animation-delay:0.5s]" />
+              </>
+            )}
+            <span
+              className={`relative flex items-center justify-center w-36 h-36 rounded-full bg-surface shadow-lg ring-1 ring-border ${
+                isRecording ? "tt-pulse" : ""
+              }`}
+            >
+              <LogoMark size={84} />
+            </span>
+          </button>
 
-      <div className="mt-5 h-6 text-center">
-        {isRecording ? (
-          <span className="font-mono text-lg text-brand tabular-nums">
-            {formatTime(elapsed)}
-          </span>
-        ) : (
-          <span className="text-muted text-sm">{statusText[phase]}</span>
-        )}
-      </div>
+          <div className="mt-5 h-6 text-center">
+            {isRecording ? (
+              <span className="font-mono text-lg text-brand tabular-nums">
+                {formatTime(elapsed)}
+              </span>
+            ) : (
+              <span className="text-muted text-sm">{statusText[phase]}</span>
+            )}
+          </div>
+        </>
+      )}
 
       {error && (
         <div className="mt-4 w-full rounded-lg bg-red-50 text-danger text-sm px-4 py-3 ring-1 ring-red-100">
@@ -225,61 +280,114 @@ export default function Recorder({
         </div>
       )}
 
-      {/* Transcript */}
-      {(phase === "ready" || phase === "summarizing") && transcript && (
-        <div className="mt-6 w-full">
+      {/* Transcript — editable before save, read-only after */}
+      {(phase === "transcript" ||
+        phase === "saved" ||
+        phase === "summarizing" ||
+        phase === "summarized") && (
+        <div className="mt-2 w-full">
           <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-2">
-            Transcript
+            {phase === "transcript" ? "Your note" : "Your note (saved)"}
           </label>
-          <textarea
-            value={transcript}
-            onChange={(e) => {
-              setTranscript(e.target.value);
-              setSaveState("idle");
-            }}
-            rows={5}
-            className="w-full rounded-xl border border-border bg-surface p-4 text-foreground text-[15px] leading-relaxed shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
-          />
+          {phase === "transcript" ? (
+            <textarea
+              value={transcript}
+              onChange={(e) => setTranscript(e.target.value)}
+              rows={5}
+              className="w-full rounded-xl border border-border bg-surface p-4 text-foreground text-[15px] leading-relaxed shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
+            />
+          ) : (
+            <div className="w-full rounded-xl border border-border bg-surface p-4 text-foreground text-[15px] leading-relaxed shadow-sm whitespace-pre-wrap">
+              {transcript}
+            </div>
+          )}
+
+          {/* Phase-specific actions */}
           <div className="mt-3 flex flex-wrap gap-3">
-            <button
-              onClick={summarize}
-              disabled={phase === "summarizing" || !transcript.trim()}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
-            >
-              {phase === "summarizing" ? "Summarizing…" : "✨ Summarize with AI"}
-            </button>
-            {canSave && (
-              <button
-                onClick={handleSave}
-                disabled={saveState !== "idle" || !transcript.trim()}
-                className="inline-flex items-center gap-2 rounded-lg bg-surface px-4 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 disabled:opacity-60 transition"
-              >
-                {saveState === "saving"
-                  ? "Saving…"
-                  : saveState === "saved"
-                    ? "✓ Saved"
-                    : "💾 Save note"}
-              </button>
+            {phase === "transcript" && (
+              <>
+                <button
+                  onClick={handleSave}
+                  disabled={!transcript.trim()}
+                  className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
+                >
+                  💾 Save
+                </button>
+                <button
+                  onClick={() => setPhase("confirmDelete")}
+                  className="inline-flex items-center gap-2 rounded-lg bg-surface px-4 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 transition"
+                >
+                  🗑 Delete
+                </button>
+              </>
             )}
+
+            {phase === "saved" && (
+              <>
+                <button
+                  onClick={handleSummarize}
+                  className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 transition"
+                >
+                  ✨ Summarize with AI?
+                </button>
+                <button
+                  onClick={() => setPhase("confirmDelete")}
+                  className="inline-flex items-center gap-2 rounded-lg bg-surface px-4 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 transition"
+                >
+                  🗑 Delete
+                </button>
+              </>
+            )}
+
+            {phase === "summarizing" && (
+              <div className="inline-flex items-center gap-2 text-brand text-sm font-medium">
+                <LogoMark size={20} className="tt-pulse" />
+                Reading your note and writing it up…
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation */}
+      {phase === "confirmDelete" && (
+        <div className="mt-4 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm text-center">
+          <p className="text-foreground font-medium">Delete this note?</p>
+          <p className="text-sm text-muted mt-1 mb-4">
+            This can&apos;t be undone.
+          </p>
+          <div className="flex justify-center gap-3">
             <button
-              onClick={startRecording}
-              className="inline-flex items-center gap-2 rounded-lg bg-surface px-4 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 transition"
+              onClick={() => {
+                resetAll();
+                setPhase("idle");
+              }}
+              className="inline-flex items-center gap-2 rounded-lg bg-surface px-5 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 transition"
             >
-              🗑 Delete & record again
+              Exit
+            </button>
+            <button
+              onClick={() => {
+                resetAll();
+                startRecording();
+              }}
+              className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 transition"
+            >
+              🎙 Record again
             </button>
           </div>
         </div>
       )}
 
-      {/* AI summary */}
-      {summary && (
+      {/* AI summary — writes in live */}
+      {phase === "summarized" && summary && (
         <div className="mt-6 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-xs font-semibold uppercase tracking-wide text-accent-600">
               AI Summary
             </span>
           </div>
-          <h3 className="text-lg font-semibold text-foreground">
+          <h3 className="text-lg font-semibold text-foreground tt-fade-in">
             {summary.jobTitle}
           </h3>
 
@@ -297,59 +405,75 @@ export default function Recorder({
                 Customer message
               </div>
               <p className="text-[15px] leading-relaxed text-foreground">
-                {summary.customerMessage}
+                <Typewriter
+                  text={summary.customerMessage}
+                  onDone={() => setWritingDone(true)}
+                />
               </p>
             </div>
           )}
 
-          <SendToCustomer summary={summary} />
-        </div>
-      )}
+          {/* Send + templates appear once the AI finishes writing */}
+          {writingDone && (
+            <div className="tt-fade-in">
+              <SendToCustomer summary={summary} />
 
-      {/* Fill a saved template from this note */}
-      {phase === "ready" && transcript && templates.length > 0 && (
-        <div className="mt-6 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-wide text-accent-600 mb-3">
-            Fill a template
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <select
-              value={templateId}
-              onChange={(e) => setTemplateId(e.target.value)}
-              className="flex-1 min-w-[180px] rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-            >
-              <option value="">Choose a template…</option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={fillTemplate}
-              disabled={!templateId || filling}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
-            >
-              {filling ? "Filling…" : "✨ Auto-fill"}
-            </button>
-          </div>
+              {templates.length > 0 && (
+                <div className="mt-5 border-t border-border pt-5">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-accent-600 mb-3">
+                    Fill a template
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <select
+                      value={templateId}
+                      onChange={(e) => setTemplateId(e.target.value)}
+                      className="flex-1 min-w-[180px] rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                    >
+                      <option value="">Choose a template…</option>
+                      {templates.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={fillTemplate}
+                      disabled={!templateId || filling}
+                      className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
+                    >
+                      {filling ? "Filling…" : "✨ Auto-fill"}
+                    </button>
+                  </div>
 
-          {filled && (
-            <div className="mt-4">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-semibold uppercase tracking-wide text-muted">
-                  Filled template
-                </span>
+                  {filled && (
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-muted">
+                          Filled template
+                        </span>
+                        <button
+                          onClick={copyFilled}
+                          className="text-xs font-medium text-brand hover:underline"
+                        >
+                          {filledCopied ? "✓ Copied" : "Copy"}
+                        </button>
+                      </div>
+                      <pre className="whitespace-pre-wrap rounded-xl border border-border bg-slate-50 p-4 text-[14px] leading-relaxed text-foreground font-sans">
+                        {filled}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="mt-5 border-t border-border pt-4">
                 <button
-                  onClick={copyFilled}
-                  className="text-xs font-medium text-brand hover:underline"
+                  onClick={() => setPhase("confirmDelete")}
+                  className="text-sm font-medium text-muted hover:text-danger transition"
                 >
-                  {filledCopied ? "✓ Copied" : "Copy"}
+                  🗑 Delete &amp; start over
                 </button>
               </div>
-              <pre className="whitespace-pre-wrap rounded-xl border border-border bg-slate-50 p-4 text-[14px] leading-relaxed text-foreground font-sans">
-                {filled}
-              </pre>
             </div>
           )}
         </div>
@@ -379,7 +503,11 @@ function SummarySection({
       </div>
       <ul className="space-y-1">
         {items.map((item, i) => (
-          <li key={i} className="flex gap-2 text-[15px] text-foreground">
+          <li
+            key={i}
+            className="flex gap-2 text-[15px] text-foreground tt-fade-in"
+            style={{ animationDelay: `${i * 90}ms` }}
+          >
             <span className={accent ? "text-accent" : "text-brand"}>•</span>
             <span>{item}</span>
           </li>

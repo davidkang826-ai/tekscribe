@@ -71,9 +71,9 @@ export default async function Home() {
             Congrats on finishing the job!
           </h1>
           <p className="mt-2 text-muted max-w-lg mx-auto">
-            Record a quick voice note from wherever you are. TechTalk transcribes
-            it, converts it into a detailed note, fills out any of your
-            templates, and writes a customer update email or text for you.
+            Record a quick voice note from wherever you are. Don&apos;t worry
+            about the pauses, awkward silences, or corrections. We&apos;ll take
+            care of that for you.
           </p>
         </div>
 

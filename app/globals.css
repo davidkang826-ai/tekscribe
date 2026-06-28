@@ -52,3 +52,24 @@ body {
   100% { transform: scale(1.7); opacity: 0; }
 }
 .tt-ring { animation: techtalk-ring 1.6s ease-out infinite; }
+
+/* Live "AI writing" effect */
+@keyframes techtalk-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.tt-cursor {
+  display: inline-block;
+  width: 0.5ch;
+  color: var(--brand);
+  animation: techtalk-blink 0.9s steps(1) infinite;
+}
+
+@keyframes techtalk-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.tt-fade-in {
+  opacity: 0;
+  animation: techtalk-fade-in 0.4s ease-out forwards;
+}
