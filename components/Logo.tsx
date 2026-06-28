@@ -1,8 +1,8 @@
 import type { CSSProperties } from "react";
 
 /**
- * TechTalk mark: a speech bubble (talk) containing a voice waveform (record).
- * Built for field-service techs — bold, high-contrast, reads at small sizes.
+ * TechTalk mark: a clipboard with a heartbeat/pulse line — the field-service
+ * job report, brought to life by voice. Outline style, themed to the brand blue.
  */
 export function LogoMark({
   size = 72,
@@ -24,33 +24,22 @@ export function LogoMark({
       style={style}
       aria-hidden="true"
     >
-      {/* Speech bubble */}
-      <path
-        d="M20 14h60a14 14 0 0 1 14 14v34a14 14 0 0 1-14 14H44L26 92V76h-6a14 14 0 0 1-14-14V28a14 14 0 0 1 14-14Z"
-        fill="var(--brand)"
-      />
-      {/* Voice waveform bars */}
       <g
-        stroke="#ffffff"
+        stroke="var(--brand)"
         strokeWidth="6"
         strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
       >
-        <line x1="30" y1="38" x2="30" y2="52" />
-        <line x1="42" y1="31" x2="42" y2="59" />
-        <line x1="54" y1="36" x2="54" y2="54" />
-        <line x1="66" y1="28" x2="66" y2="62" />
+        {/* Clipboard board, with a gap at the top for the clip */}
+        <path d="M38 24 H29 Q20 24 20 33 V81 Q20 90 29 90 H71 Q80 90 80 81 V33 Q80 24 71 24 H62" />
+        {/* Clip */}
+        <rect x="38" y="22" width="24" height="12" rx="5" />
+        {/* Clip hole */}
+        <circle cx="50" cy="20" r="2.6" />
+        {/* Heartbeat / pulse line — tall QRS spike centered, small P/T waves */}
+        <polyline points="22,57 34,57 38,52 42,57 46,57 48,64 51,29 54,73 57,57 62,57 66,52 70,57 78,57" />
       </g>
-      {/* Hi-vis amber center bar — the "live" accent */}
-      <line
-        x1="54"
-        y1="22"
-        x2="54"
-        y2="68"
-        stroke="var(--accent)"
-        strokeWidth="6"
-        strokeLinecap="round"
-        opacity="0"
-      />
     </svg>
   );
 }
