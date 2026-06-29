@@ -33,9 +33,10 @@ export default async function OnboardingPage() {
             One last step
           </h1>
           <p className="text-sm text-muted mb-5">
-            Add your mobile number so you can text customers right from a job.
+            A couple details so you can text and email customers right from a
+            job.
           </p>
-          <OnboardingForm />
+          <OnboardingForm signupEmail={user.email ?? ""} />
         </div>
       </div>
     </div>

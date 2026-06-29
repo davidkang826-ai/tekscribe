@@ -32,7 +32,13 @@ function buildSmsBody(summary: JobSummary): string {
   return lines.join("\n");
 }
 
-export default function SendToCustomer({ summary }: { summary: JobSummary }) {
+export default function SendToCustomer({
+  summary,
+  defaultReplyTo = "",
+}: {
+  summary: JobSummary;
+  defaultReplyTo?: string;
+}) {
   const [channel, setChannel] = useState<Channel>("email");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -43,6 +49,12 @@ export default function SendToCustomer({ summary }: { summary: JobSummary }) {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+
+  // Where customer replies go. Defaults to the tech's saved reply-to; they can
+  // change it for this send.
+  const [replyTo, setReplyTo] = useState(defaultReplyTo);
+  const [editingReplyTo, setEditingReplyTo] = useState(false);
+  const validReplyTo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyTo);
 
   const emailBody = useMemo(() => buildEmailBody(summary), [summary]);
   const smsBody = useMemo(() => buildSmsBody(summary), [summary]);
@@ -65,7 +77,12 @@ export default function SendToCustomer({ summary }: { summary: JobSummary }) {
       const res = await fetch("/api/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: email, subject, text: emailBody }),
+        body: JSON.stringify({
+          to: email,
+          subject,
+          text: emailBody,
+          replyTo: validReplyTo ? replyTo : undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Send failed.");
@@ -144,6 +161,48 @@ export default function SendToCustomer({ summary }: { summary: JobSummary }) {
                 onChange={(e) => setSubject(e.target.value)}
                 className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
               />
+            </div>
+
+            {/* Reply-to: confirm or change the address replies go to */}
+            <div className="rounded-lg bg-slate-50 px-3 py-2.5">
+              {editingReplyTo ? (
+                <div>
+                  <label className="block text-xs text-muted mb-1">
+                    Replies should go to
+                  </label>
+                  <input
+                    type="email"
+                    inputMode="email"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    value={replyTo}
+                    onChange={(e) => setReplyTo(e.target.value)}
+                    placeholder="you@example.com"
+                    className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                  />
+                  <button
+                    onClick={() => setEditingReplyTo(false)}
+                    className="mt-2 text-xs font-medium text-brand hover:underline"
+                  >
+                    Done
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="text-muted">
+                    Replies go to{" "}
+                    <span className="font-medium text-foreground">
+                      {replyTo || "—"}
+                    </span>
+                  </span>
+                  <button
+                    onClick={() => setEditingReplyTo(true)}
+                    className="font-medium text-brand hover:underline shrink-0"
+                  >
+                    Change
+                  </button>
+                </div>
+              )}
             </div>
           </>
         ) : (

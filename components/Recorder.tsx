@@ -62,9 +62,11 @@ function Typewriter({
 export default function Recorder({
   canSave = false,
   templates = [],
+  replyTo = "",
 }: {
   canSave?: boolean;
   templates?: Template[];
+  replyTo?: string;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [elapsed, setElapsed] = useState(0);
@@ -429,7 +431,7 @@ export default function Recorder({
           {/* Send + templates appear once the AI finishes writing */}
           {writingDone && (
             <div className="tt-fade-in">
-              <SendToCustomer summary={summary} />
+              <SendToCustomer summary={summary} defaultReplyTo={replyTo} />
 
               {templates.length > 0 && (
                 <div className="mt-5 border-t border-border pt-5">

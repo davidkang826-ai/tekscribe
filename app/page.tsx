@@ -10,6 +10,7 @@ import type { Template } from "@/lib/types";
 export default async function Home() {
   let authed = false;
   let templates: Template[] = [];
+  let replyTo = "";
 
   // Once Supabase is configured, the app requires a verified account with a
   // phone number. Until then it stays open so the core loop is demoable.
@@ -22,10 +23,11 @@ export default async function Home() {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("phone")
+      .select("phone, reply_to_email")
       .eq("id", user.id)
       .single();
     if (!profile?.phone) redirect("/onboarding");
+    replyTo = profile.reply_to_email || user.email || "";
 
     const { data: tpls } = await supabase
       .from("templates")
@@ -77,7 +79,7 @@ export default async function Home() {
           </p>
         </div>
 
-        <Recorder canSave={authed} templates={templates} />
+        <Recorder canSave={authed} templates={templates} replyTo={replyTo} />
       </main>
 
       <footer className="w-full border-t border-border py-6 text-center text-xs text-muted">

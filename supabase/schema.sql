@@ -9,8 +9,12 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   business_name text,
   phone text,
+  reply_to_email text, -- where customer email replies should go (defaults to signup email)
   created_at timestamptz not null default now()
 );
+
+-- For existing databases created before reply_to_email existed:
+alter table public.profiles add column if not exists reply_to_email text;
 
 alter table public.profiles enable row level security;
 

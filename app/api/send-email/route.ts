@@ -12,7 +12,7 @@ function escapeHtml(s: string) {
 
 export async function POST(request: Request) {
   try {
-    const { to, subject, text } = await request.json();
+    const { to, subject, text, replyTo: replyToOverride } = await request.json();
 
     if (!to || !subject || !text) {
       return Response.json(
@@ -30,21 +30,25 @@ export async function POST(request: Request) {
     }
 
     // Pull the technician's identity so the email looks like it's from them.
-    let replyTo: string | undefined;
+    // Reply-to priority: per-send override → saved profile → signup email.
+    let replyTo: string | undefined =
+      typeof replyToOverride === "string" && replyToOverride.includes("@")
+        ? replyToOverride
+        : undefined;
     let fromName = "TechTalk";
     try {
       const supabase = await createClient();
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (user?.email) replyTo = user.email;
       if (user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("business_name")
+          .select("business_name, reply_to_email")
           .eq("id", user.id)
           .single();
         if (profile?.business_name) fromName = profile.business_name;
+        if (!replyTo) replyTo = profile?.reply_to_email || user.email || undefined;
       }
     } catch {
       // Supabase not configured (open mode) — send with defaults.

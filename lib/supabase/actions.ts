@@ -65,8 +65,11 @@ export async function saveProfile(
   formData: FormData
 ): Promise<AuthState> {
   const phone = String(formData.get("phone") ?? "").trim();
+  const replyTo = String(formData.get("reply_to_email") ?? "").trim();
 
   if (!phone) return { error: "Please enter your phone number." };
+  if (replyTo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyTo))
+    return { error: "That reply-to email doesn't look right." };
 
   const supabase = await createClient();
   const {
@@ -76,7 +79,7 @@ export async function saveProfile(
 
   const { error } = await supabase
     .from("profiles")
-    .update({ phone })
+    .update({ phone, reply_to_email: replyTo || user.email })
     .eq("id", user.id);
 
   if (error) return { error: error.message };
