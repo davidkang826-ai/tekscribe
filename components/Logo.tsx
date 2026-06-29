@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 
 /**
- * TechTalk mark: a clipboard with a heartbeat/pulse line — the field-service
+ * TekScribe mark: a clipboard with a heartbeat/pulse line — the field-service
  * job report, brought to life by voice. Outline style, themed to the brand blue.
  */
 export function LogoMark({
@@ -52,7 +52,7 @@ export function Logo({ size = 32 }: { size?: number }) {
         className="font-semibold tracking-tight text-foreground"
         style={{ fontSize: size * 0.62 }}
       >
-        Tech<span className="text-brand">Talk</span>
+Tek<span className="text-brand">Scribe</span>
       </span>
     </div>
   );

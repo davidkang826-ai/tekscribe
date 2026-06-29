@@ -286,7 +286,7 @@ export default function SendToCustomer({
             </p>
           ) : (
             <p className="text-xs text-muted">
-              TechTalk sends this email for you — works on any device. Replies go
+              TekScribe sends this email for you — works on any device. Replies go
               straight to your inbox.
             </p>
           )

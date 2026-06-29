@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TechTalk — voice-to-summary for the trades",
+  title: "TekScribe — voice-to-summary for the trades",
   description:
-    "Field-service techs record a voice note; TechTalk transcribes it, extracts parts and next steps, and writes the customer update.",
+    "Field-service techs record a voice note; TekScribe transcribes it, extracts parts and next steps, and writes the customer update.",
 };
 
 export default function RootLayout({

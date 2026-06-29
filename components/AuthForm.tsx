@@ -33,7 +33,7 @@ export default function AuthForm({
           <p className="text-sm text-muted mb-5">
             {isSignup
               ? "Start turning voice notes into customer updates."
-              : "Sign in to your TechTalk account."}
+              : "Sign in to your TekScribe account."}
           </p>
 
           {notice && (
@@ -94,7 +94,7 @@ export default function AuthForm({
             </>
           ) : (
             <>
-              New to TechTalk?{" "}
+              New to TekScribe?{" "}
               <Link href="/signup" className="text-brand font-medium">
                 Create an account
               </Link>

@@ -83,7 +83,7 @@ export default async function Home() {
       </main>
 
       <footer className="w-full border-t border-border py-6 text-center text-xs text-muted">
-        TechTalk · voice-to-summary for the trades
+        TekScribe · voice-to-summary for the trades
       </footer>
     </div>
   );

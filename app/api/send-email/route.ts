@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       typeof replyToOverride === "string" && replyToOverride.includes("@")
         ? replyToOverride
         : undefined;
-    let fromName = "TechTalk";
+    let fromName = "TekScribe";
     try {
       const supabase = await createClient();
       const {

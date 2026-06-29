@@ -47,7 +47,7 @@ export default async function TemplatesPage() {
           <h1 className="text-xl font-semibold text-foreground">Templates</h1>
           <p className="mt-1 text-sm text-muted max-w-lg">
             Upload the documents you fill out by hand today — work orders,
-            invoices, inspection reports. After you record a job, TechTalk fills
+            invoices, inspection reports. After you record a job, TekScribe fills
             them in from what you said.
           </p>
         </div>

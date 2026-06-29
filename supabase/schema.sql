@@ -1,4 +1,4 @@
--- TechTalk database schema
+-- TekScribe database schema
 -- Paste this into the Supabase SQL Editor (Dashboard → SQL Editor → New query) and Run.
 
 -- ---------------------------------------------------------------------------

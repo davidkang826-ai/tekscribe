@@ -86,7 +86,7 @@ export default function AddTemplateForm() {
         <p className="mt-1 text-xs text-muted">
           Tip: write the fields exactly how you want them. Mark blanks with
           things like <code className="text-foreground">[name]</code> or{" "}
-          <code className="text-foreground">____</code> and TechTalk fills them
+          <code className="text-foreground">____</code> and TekScribe fills them
           from what you say.
         </p>
       </div>
