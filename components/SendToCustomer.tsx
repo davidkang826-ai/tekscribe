@@ -5,7 +5,6 @@ import type { JobSummary } from "@/lib/types";
 
 type Channel = "email" | "text";
 
-/** Full, formatted body for email. */
 function buildEmailBody(summary: JobSummary): string {
   const lines: string[] = [];
   if (summary.customerMessage) lines.push(summary.customerMessage, "");
@@ -23,7 +22,6 @@ function buildEmailBody(summary: JobSummary): string {
   return lines.join("\n");
 }
 
-/** Shorter body for a text message — texts should be skimmable. */
 function buildSmsBody(summary: JobSummary): string {
   const lines: string[] = [];
   if (summary.customerMessage) lines.push(summary.customerMessage);
@@ -42,30 +40,42 @@ export default function SendToCustomer({ summary }: { summary: JobSummary }) {
     `Summary of your service visit — ${summary.jobTitle}`
   );
   const [copied, setCopied] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   const emailBody = useMemo(() => buildEmailBody(summary), [summary]);
   const smsBody = useMemo(() => buildSmsBody(summary), [summary]);
 
   const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  // Need at least 10 digits for a real phone number.
   const phoneDigits = phone.replace(/[^\d+]/g, "");
   const validPhone = phoneDigits.replace(/\D/g, "").length >= 10;
 
-  const mailtoHref = useMemo(() => {
-    const params = new URLSearchParams({ subject, body: emailBody });
-    return `mailto:${encodeURIComponent(email)}?${params.toString()}`;
-  }, [email, subject, emailBody]);
-
-  // `sms:NUMBER?&body=...` is the cross-platform form that works on both
-  // iOS and Android (opens Messages with the text prefilled).
   const smsHref = useMemo(
     () => `sms:${phoneDigits}?&body=${encodeURIComponent(smsBody)}`,
     [phoneDigits, smsBody]
   );
 
   const isEmail = channel === "email";
-  const valid = isEmail ? validEmail : validPhone;
-  const href = isEmail ? mailtoHref : smsHref;
+
+  async function sendEmail() {
+    setSending(true);
+    setSendError(null);
+    try {
+      const res = await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: email, subject, text: emailBody }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Send failed.");
+      setSent(true);
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : "Send failed.");
+    } finally {
+      setSending(false);
+    }
+  }
 
   async function copyAll() {
     const text = isEmail ? `Subject: ${subject}\n\n${emailBody}` : smsBody;
@@ -74,7 +84,7 @@ export default function SendToCustomer({ summary }: { summary: JobSummary }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // clipboard may be blocked; ignore
+      // ignore
     }
   }
 
@@ -84,12 +94,15 @@ export default function SendToCustomer({ summary }: { summary: JobSummary }) {
         Send to customer
       </div>
 
-      {/* Channel toggle */}
       <div className="inline-flex rounded-lg bg-slate-100 p-1 mb-3">
         {(["email", "text"] as Channel[]).map((c) => (
           <button
             key={c}
-            onClick={() => setChannel(c)}
+            onClick={() => {
+              setChannel(c);
+              setSent(false);
+              setSendError(null);
+            }}
             className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${
               channel === c
                 ? "bg-surface text-foreground shadow-sm"
@@ -114,7 +127,11 @@ export default function SendToCustomer({ summary }: { summary: JobSummary }) {
                 autoCapitalize="off"
                 autoCorrect="off"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setSent(false);
+                  setSendError(null);
+                }}
                 placeholder="customer@example.com"
                 className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
               />
@@ -154,21 +171,47 @@ export default function SendToCustomer({ summary }: { summary: JobSummary }) {
           </pre>
         </details>
 
+        {sendError && (
+          <div className="rounded-lg bg-red-50 text-danger text-sm px-3 py-2.5 ring-1 ring-red-100">
+            {sendError}
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-3 pt-1">
-          <a
-            href={valid ? href : undefined}
-            aria-disabled={!valid}
-            onClick={(e) => {
-              if (!valid) e.preventDefault();
-            }}
-            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 font-medium text-sm shadow-sm transition ${
-              valid
-                ? "bg-brand text-white hover:bg-brand-600"
-                : "bg-slate-200 text-slate-400 cursor-not-allowed"
-            }`}
-          >
-            {isEmail ? "✉️ Open in email app" : "💬 Open in Messages"}
-          </a>
+          {isEmail ? (
+            <button
+              onClick={sendEmail}
+              disabled={!validEmail || sending || sent}
+              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 font-medium text-sm shadow-sm transition ${
+                sent
+                  ? "bg-success text-white"
+                  : validEmail && !sending
+                    ? "bg-brand text-white hover:bg-brand-600"
+                    : "bg-slate-200 text-slate-400 cursor-not-allowed"
+              }`}
+            >
+              {sent
+                ? "✓ Sent"
+                : sending
+                  ? "Sending…"
+                  : "✉️ Send email"}
+            </button>
+          ) : (
+            <a
+              href={validPhone ? smsHref : undefined}
+              aria-disabled={!validPhone}
+              onClick={(e) => {
+                if (!validPhone) e.preventDefault();
+              }}
+              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 font-medium text-sm shadow-sm transition ${
+                validPhone
+                  ? "bg-brand text-white hover:bg-brand-600"
+                  : "bg-slate-200 text-slate-400 cursor-not-allowed"
+              }`}
+            >
+              💬 Open in Messages
+            </a>
+          )}
           <button
             onClick={copyAll}
             className="inline-flex items-center gap-2 rounded-lg bg-surface px-4 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 transition"
@@ -176,17 +219,23 @@ export default function SendToCustomer({ summary }: { summary: JobSummary }) {
             {copied ? "✓ Copied" : "Copy text"}
           </button>
         </div>
-        {!valid ? (
-          <p className="text-xs text-accent-600">
-            {isEmail
-              ? "Enter the customer's email above to enable sending."
-              : "Enter the customer's mobile number above to enable sending."}
-          </p>
+
+        {isEmail ? (
+          !validEmail ? (
+            <p className="text-xs text-accent-600">
+              Enter the customer&apos;s email above to send.
+            </p>
+          ) : (
+            <p className="text-xs text-muted">
+              TechTalk sends this email for you — works on any device. Replies go
+              straight to your inbox.
+            </p>
+          )
         ) : (
           <p className="text-xs text-muted">
-            {isEmail
-              ? "Opens your mail app with everything filled in, sent from your own address — just hit send. (On a phone this is your Mail app; on a computer it uses your default email program. No mail app set up? Use “Copy text.”)"
-              : "Opens your phone's Messages app with the text filled in, sent from your own number — just hit send. (Texting works from a phone; on a computer, use “Copy text.”)"}
+            Opens your phone&apos;s Messages app with the text filled in, sent
+            from your own number. (Texting works from a phone; on a computer use
+            “Copy text.”)
           </p>
         )}
       </div>
