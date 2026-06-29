@@ -54,8 +54,9 @@ export async function POST(request: Request) {
       // Supabase not configured (open mode) — send with defaults.
     }
 
-    const from =
-      process.env.RESEND_FROM || `${fromName} <onboarding@resend.dev>`;
+    // Display name = the tech's business; address = our verified domain.
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+    const from = `${fromName} <${fromEmail}>`;
     const html = text
       .split("\n")
       .map((line: string) => escapeHtml(line))
