@@ -17,7 +17,7 @@ export function LogoMark({
     <svg
       width={size}
       height={size}
-      viewBox="9 12 82 82"
+      viewBox="17 17 66 66"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
@@ -26,19 +26,19 @@ export function LogoMark({
     >
       <g
         stroke="var(--brand)"
-        strokeWidth="4"
+        strokeWidth="3.5"
         strokeLinecap="round"
         strokeLinejoin="round"
         fill="none"
       >
-        {/* Clipboard board, with a gap at the top for the clip */}
-        <path d="M38 24 H29 Q20 24 20 33 V81 Q20 90 29 90 H71 Q80 90 80 81 V33 Q80 24 71 24 H62" />
+        {/* Square-ish clipboard board, centered, gap at top for the clip */}
+        <path d="M40 30 H33 Q24 30 24 39 V71 Q24 80 33 80 H67 Q76 80 76 71 V39 Q76 30 67 30 H60" />
         {/* Clip */}
-        <rect x="38" y="22" width="24" height="12" rx="5" />
+        <rect x="40" y="23" width="20" height="11" rx="4" />
         {/* Clip hole */}
-        <circle cx="50" cy="20" r="2.2" />
-        {/* Heartbeat / pulse line — tall QRS spike centered, small P/T waves */}
-        <polyline points="22,57 34,57 38,52 42,57 46,57 48,64 51,29 54,73 57,57 62,57 66,52 70,57 78,57" />
+        <circle cx="50" cy="22" r="2" />
+        {/* Heartbeat / pulse line — centered QRS spike, small P/T waves */}
+        <polyline points="26,55 36,55 40,51 43,55 47,55 48,61 51,33 53,68 56,55 60,55 64,51 67,55 74,55" />
       </g>
     </svg>
   );
