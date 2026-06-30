@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export type AuthState = { error?: string };
+export type AuthState = { error?: string; ok?: boolean };
 
 async function siteOrigin(): Promise<string> {
   const h = await headers();
@@ -58,6 +58,43 @@ export async function signOut(): Promise<void> {
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/login");
+}
+
+export async function requestPasswordReset(
+  _prev: AuthState,
+  formData: FormData
+): Promise<AuthState> {
+  const email = String(formData.get("email") ?? "").trim();
+  if (!email) return { error: "Enter your email." };
+
+  const supabase = await createClient();
+  const origin = await siteOrigin();
+  // Sends a recovery link; /auth/confirm verifies it and forwards to reset.
+  await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${origin}/auth/confirm?next=/reset-password`,
+  });
+
+  // Always report success (don't reveal whether the email exists).
+  return { ok: true };
+}
+
+export async function updatePassword(
+  _prev: AuthState,
+  formData: FormData
+): Promise<AuthState> {
+  const password = String(formData.get("password") ?? "");
+  if (password.length < 8)
+    return { error: "Password must be at least 8 characters." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Your reset link expired. Request a new one." };
+
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) return { error: error.message };
+  redirect("/");
 }
 
 export async function saveProfile(

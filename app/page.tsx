@@ -82,8 +82,16 @@ export default async function Home() {
         <Recorder canSave={authed} templates={templates} replyTo={replyTo} />
       </main>
 
-      <footer className="w-full border-t border-border py-6 text-center text-xs text-muted">
-        TekScribe · voice-to-summary for the trades
+      <footer className="w-full border-t border-border py-6 text-center text-xs text-muted space-y-1">
+        <div>TekScribe · voice-to-summary for the trades</div>
+        <div className="flex justify-center gap-4">
+          <Link href="/privacy" className="hover:text-foreground transition">
+            Privacy
+          </Link>
+          <Link href="/terms" className="hover:text-foreground transition">
+            Terms
+          </Link>
+        </div>
       </footer>
     </div>
   );

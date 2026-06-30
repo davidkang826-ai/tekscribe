@@ -70,6 +70,16 @@ export default function AuthForm({
               placeholder={isSignup ? "At least 8 characters" : "Your password"}
               required
             />
+            {!isSignup && (
+              <div className="text-right -mt-1">
+                <Link
+                  href="/forgot-password"
+                  className="text-xs font-medium text-brand hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+            )}
             <button
               type="submit"
               disabled={pending}

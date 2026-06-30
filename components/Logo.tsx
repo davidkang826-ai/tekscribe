@@ -26,7 +26,7 @@ export function LogoMark({
     >
       <g
         stroke="var(--brand)"
-        strokeWidth="6"
+        strokeWidth="4"
         strokeLinecap="round"
         strokeLinejoin="round"
         fill="none"
@@ -36,7 +36,7 @@ export function LogoMark({
         {/* Clip */}
         <rect x="38" y="22" width="24" height="12" rx="5" />
         {/* Clip hole */}
-        <circle cx="50" cy="20" r="2.6" />
+        <circle cx="50" cy="20" r="2.2" />
         {/* Heartbeat / pulse line — tall QRS spike centered, small P/T waves */}
         <polyline points="22,57 34,57 38,52 42,57 46,57 48,64 51,29 54,73 57,57 62,57 66,52 70,57 78,57" />
       </g>
