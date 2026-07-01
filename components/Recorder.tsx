@@ -10,6 +10,7 @@ type Phase =
   | "idle"
   | "recording"
   | "transcribing"
+  | "transcribeError" // transcription failed; audio kept for retry
   | "transcript" // raw transcript shown: Save / Delete
   | "saved" // transcript saved: Summarize? / Delete
   | "summarizing" // calling the AI
@@ -88,6 +89,8 @@ export default function Recorder({
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Keep the last recording so a failed transcription can be retried, not lost.
+  const lastBlobRef = useRef<Blob | null>(null);
 
   const stopTimer = () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -102,6 +105,7 @@ export default function Recorder({
     setError(null);
     setTemplateId("");
     setFilled(null);
+    lastBlobRef.current = null;
   };
 
   const askDelete = (from: Phase) => {
@@ -127,6 +131,7 @@ export default function Recorder({
         const blob = new Blob(chunksRef.current, {
           type: recorder.mimeType || "audio/webm",
         });
+        lastBlobRef.current = blob;
         await transcribe(blob);
       };
 
@@ -162,8 +167,16 @@ export default function Recorder({
       setPhase("transcript");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Transcription failed.");
-      setPhase("idle");
+      // Keep the audio (lastBlobRef) so the tech can retry instead of losing it.
+      setPhase("transcribeError");
     }
+  }
+
+  function retryTranscribe() {
+    if (!lastBlobRef.current) return;
+    setError(null);
+    setPhase("transcribing");
+    transcribe(lastBlobRef.current);
   }
 
   async function handleSave() {
@@ -286,6 +299,36 @@ export default function Recorder({
       {error && (
         <div className="mt-4 w-full rounded-lg bg-red-50 text-danger text-sm px-4 py-3 ring-1 ring-red-100">
           {error}
+        </div>
+      )}
+
+      {/* Transcription failed — the recording is kept so it can be retried */}
+      {phase === "transcribeError" && (
+        <div className="mt-4 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm text-center">
+          <p className="text-foreground font-medium">
+            Transcription didn&apos;t go through
+          </p>
+          <p className="text-sm text-muted mt-1 mb-4">
+            Your recording is safe — no need to say it again. Give it another
+            try.
+          </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            <button
+              onClick={retryTranscribe}
+              className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 transition"
+            >
+              ↻ Retry transcription
+            </button>
+            <button
+              onClick={() => {
+                resetAll();
+                startRecording();
+              }}
+              className="inline-flex items-center gap-2 rounded-lg bg-surface px-5 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 transition"
+            >
+              🎙 Discard &amp; re-record
+            </button>
+          </div>
         </div>
       )}
 
