@@ -16,3 +16,10 @@ export function getOpenAI(): OpenAI {
 
 export const TRANSCRIPTION_MODEL = "whisper-1";
 export const SUMMARY_MODEL = "gpt-4o";
+
+/** Remove a surrounding ```markdown fence the model sometimes adds. */
+export function stripCodeFence(s: string): string {
+  const t = s.trim();
+  const m = t.match(/^```[a-zA-Z]*\n([\s\S]*?)\n?```$/);
+  return m ? m[1].trim() : t;
+}

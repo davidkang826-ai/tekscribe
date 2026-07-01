@@ -1,4 +1,4 @@
-import { getOpenAI, SUMMARY_MODEL } from "@/lib/openai";
+import { getOpenAI, SUMMARY_MODEL, stripCodeFence } from "@/lib/openai";
 import mammoth from "mammoth";
 import * as XLSX from "xlsx";
 import type OpenAI from "openai";
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
         ],
       });
       return Response.json({
-        content: completion.choices[0]?.message?.content?.trim() ?? "",
+        content: stripCodeFence(completion.choices[0]?.message?.content ?? ""),
       });
     }
 
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
     });
 
     return Response.json({
-      content: completion.choices[0]?.message?.content?.trim() ?? "",
+      content: stripCodeFence(completion.choices[0]?.message?.content ?? ""),
     });
   } catch (err) {
     const message =

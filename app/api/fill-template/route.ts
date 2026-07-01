@@ -1,4 +1,4 @@
-import { getOpenAI, SUMMARY_MODEL } from "@/lib/openai";
+import { getOpenAI, SUMMARY_MODEL, stripCodeFence } from "@/lib/openai";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       ],
     });
 
-    const filled = completion.choices[0]?.message?.content?.trim() ?? "";
+    const filled = stripCodeFence(completion.choices[0]?.message?.content ?? "");
     return Response.json({ filled });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Template fill failed.";

@@ -61,11 +61,23 @@ export default function AddTemplateForm() {
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const isImage = file.type.startsWith("image/");
+
+    // Non-image files upload as-is; Vercel caps request bodies at ~4.5 MB.
+    const MAX_BYTES = 4 * 1024 * 1024;
+    if (!isImage && file.size > MAX_BYTES) {
+      setReadError(
+        `That file is ${(file.size / 1024 / 1024).toFixed(1)} MB — the max is 4 MB. Try a smaller PDF, or use “Take a photo” of each page instead.`
+      );
+      e.target.value = "";
+      return;
+    }
+
     setReading(true);
     setReadError(null);
     try {
       let res: Response;
-      if (file.type.startsWith("image/")) {
+      if (isImage) {
         // Downscale photos in the browser so the upload stays small.
         const image = await fileToScaledDataUrl(file);
         res = await fetch("/api/template-from-image", {
@@ -82,7 +94,19 @@ export default function AddTemplateForm() {
           body: fd,
         });
       }
-      const data = await res.json();
+
+      // The response may not be JSON (e.g. a 413 from the platform).
+      let data: { content?: string; error?: string } = {};
+      try {
+        data = await res.json();
+      } catch {
+        if (res.status === 413) {
+          throw new Error(
+            "That file is too large — try one under 4 MB, or photograph the pages."
+          );
+        }
+        throw new Error(`Upload failed (${res.status}).`);
+      }
       if (!res.ok) throw new Error(data.error || "Couldn't read that file.");
       setContent(data.content || "");
       setFileName(file.name);
