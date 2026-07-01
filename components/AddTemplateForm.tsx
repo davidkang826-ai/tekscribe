@@ -125,68 +125,78 @@ export default function AddTemplateForm() {
       </div>
 
       {/* Start a template from a photo of a paper form, or a text file */}
-      <div>
-        <label className="block text-xs font-medium text-muted mb-2">
-          Start from a paper form (optional)
-        </label>
-        <div className="flex flex-wrap gap-2">
-          <label className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-white text-sm font-medium cursor-pointer hover:bg-brand-600 transition">
-            📷 Take a photo
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handleImage}
-              className="hidden"
-            />
-          </label>
-          <label className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-foreground text-sm font-medium ring-1 ring-border cursor-pointer hover:bg-slate-50 transition">
-            🖼 Photo / file
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImage}
-              className="hidden"
-            />
-          </label>
-          <label className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-foreground text-sm font-medium ring-1 ring-border cursor-pointer hover:bg-slate-50 transition">
-            ⬆ .txt
-            <input
-              type="file"
-              accept=".txt,.md,text/plain"
-              onChange={handleTextFile}
-              className="hidden"
-            />
-          </label>
-        </div>
-        <p className="mt-1.5 text-xs text-muted">
-          {reading
-            ? "📸 Reading your form…"
-            : fileName
-              ? `Loaded from ${fileName} — review and edit below.`
-              : "Snap a photo of a work order or invoice and we'll turn it into a fillable template."}
-        </p>
+      <div className="rounded-xl border border-dashed border-brand/40 bg-brand-50/50 p-5 text-center">
+        {reading ? (
+          <p className="text-sm font-medium text-brand py-2">
+            📸 Reading your form…
+          </p>
+        ) : (
+          <>
+            <div className="text-2xl mb-1">📸</div>
+            <p className="text-sm font-semibold text-foreground">
+              Start from a paper form
+            </p>
+            <p className="text-xs text-muted mt-0.5 mb-3">
+              {fileName
+                ? `Loaded from ${fileName} — review it below.`
+                : "Snap a work order or invoice and we'll turn it into a fillable template."}
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              <label className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-white text-sm font-medium cursor-pointer hover:bg-brand-600 transition shadow-sm">
+                📷 Take a photo
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleImage}
+                  className="hidden"
+                />
+              </label>
+              <label className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3.5 py-2 text-foreground text-sm font-medium ring-1 ring-border cursor-pointer hover:bg-slate-50 transition">
+                🖼 Photo / file
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImage}
+                  className="hidden"
+                />
+              </label>
+              <label className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3.5 py-2 text-foreground text-sm font-medium ring-1 ring-border cursor-pointer hover:bg-slate-50 transition">
+                ⬆ .txt
+                <input
+                  type="file"
+                  accept=".txt,.md,text/plain"
+                  onChange={handleTextFile}
+                  className="hidden"
+                />
+              </label>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="flex items-center gap-3">
+        <div className="h-px flex-1 bg-border" />
+        <span className="text-xs text-muted">or write it yourself</span>
+        <div className="h-px flex-1 bg-border" />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-muted mb-1">
-          Template content
-        </label>
         <textarea
           name="content"
           required
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          rows={8}
+          rows={6}
           placeholder={
-            "Paste your template here, or start from a photo above. Use placeholders, e.g.\n\nCustomer: [name]\nAddress: [address]\nWork performed: [work]\nParts used: [parts]\nRecommended follow-up: [next steps]"
+            "Customer: [name]\nAddress: [address]\nWork performed: [work]\nParts used: [parts]\nRecommended follow-up: [next steps]"
           }
           className="w-full rounded-lg border border-border bg-surface p-3 text-[15px] leading-relaxed font-mono focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
-        <p className="mt-1 text-xs text-muted">
-          Tip: mark blanks with things like{" "}
+        <p className="mt-1.5 text-xs text-muted">
+          Mark blanks with things like{" "}
           <code className="text-foreground">[name]</code> or{" "}
-          <code className="text-foreground">____</code> and TekScribe fills them
+          <code className="text-foreground">____</code> — TekScribe fills them
           from what you say.
         </p>
       </div>
@@ -194,7 +204,7 @@ export default function AddTemplateForm() {
       <button
         type="submit"
         disabled={pending || reading}
-        className="rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
+        className="w-full rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
       >
         {pending ? "Saving…" : "Save template"}
       </button>

@@ -45,10 +45,9 @@ export default async function TemplatesPage() {
       <main className="flex-1 w-full max-w-3xl mx-auto px-5 py-10 space-y-6">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Templates</h1>
-          <p className="mt-1 text-sm text-muted max-w-lg">
-            Upload the documents you fill out by hand today — work orders,
-            invoices, inspection reports. After you record a job, TekScribe fills
-            them in from what you said.
+          <p className="mt-1 text-sm text-muted max-w-xl">
+            The forms you fill out by hand — work orders, invoices, inspections.
+            Add one, and TekScribe fills it in from what you say on the job.
           </p>
         </div>
 
