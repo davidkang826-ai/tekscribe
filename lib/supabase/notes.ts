@@ -9,6 +9,7 @@ export async function saveNote(input: {
   transcript: string;
   summary: JobSummary | null;
   customerEmail?: string;
+  customerName?: string;
 }): Promise<SaveResult> {
   if (!input.transcript?.trim()) return { error: "Nothing to save yet." };
 
@@ -23,6 +24,7 @@ export async function saveNote(input: {
     .insert({
       user_id: user.id,
       job_title: input.summary?.jobTitle ?? null,
+      customer_name: input.customerName?.trim() || null,
       transcript: input.transcript.trim(),
       summary: input.summary,
       customer_email: input.customerEmail || null,

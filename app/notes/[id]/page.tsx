@@ -21,7 +21,9 @@ export default async function NoteDetailPage(props: {
 
   const { data: note } = await supabase
     .from("voice_notes")
-    .select("id, job_title, transcript, summary, customer_email, created_at")
+    .select(
+      "id, job_title, customer_name, transcript, summary, customer_email, created_at"
+    )
     .eq("id", id)
     .single();
   if (!note) notFound();
@@ -74,6 +76,9 @@ export default async function NoteDetailPage(props: {
             })}
           </time>
         </div>
+        {note.customer_name && (
+          <p className="mt-1 text-sm text-muted">👤 {note.customer_name}</p>
+        )}
 
         {summary && (
           <div className="mt-5 rounded-2xl border border-border bg-surface p-5 shadow-sm">

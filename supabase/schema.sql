@@ -58,11 +58,15 @@ create table if not exists public.voice_notes (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   job_title text,
+  customer_name text, -- optional: group jobs by the customer served
   transcript text not null,
   summary jsonb,
   customer_email text,
   created_at timestamptz not null default now()
 );
+
+-- For existing databases created before customer_name existed:
+alter table public.voice_notes add column if not exists customer_name text;
 
 alter table public.voice_notes enable row level security;
 

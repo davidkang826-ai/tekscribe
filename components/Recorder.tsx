@@ -78,6 +78,7 @@ export default function Recorder({
   const [error, setError] = useState<string | null>(null);
   // Where to return to if the user cancels a delete.
   const [returnPhase, setReturnPhase] = useState<Phase>("transcript");
+  const [customerName, setCustomerName] = useState("");
 
   // Template filling
   const [templateId, setTemplateId] = useState("");
@@ -105,6 +106,7 @@ export default function Recorder({
     setError(null);
     setTemplateId("");
     setFilled(null);
+    setCustomerName("");
     lastBlobRef.current = null;
   };
 
@@ -183,7 +185,7 @@ export default function Recorder({
     setError(null);
     setPhase("saved");
     if (canSave) {
-      const result = await saveNote({ transcript, summary: null });
+      const result = await saveNote({ transcript, summary: null, customerName });
       if (result.error) setError(result.error);
       else setNoteId(result.id ?? null);
     }
@@ -351,6 +353,24 @@ export default function Recorder({
           ) : (
             <div className="w-full rounded-xl border border-border bg-surface p-4 text-foreground text-[15px] leading-relaxed shadow-sm whitespace-pre-wrap">
               {transcript}
+            </div>
+          )}
+
+          {phase === "transcript" && (
+            <div className="mt-3">
+              <label className="block text-xs font-medium text-muted mb-1">
+                Customer (optional)
+              </label>
+              <input
+                type="text"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="e.g. Johnson — 12 Elm St"
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+              />
+              <p className="mt-1 text-xs text-muted">
+                Add a name to group this job with others for the same customer.
+              </p>
             </div>
           )}
 
