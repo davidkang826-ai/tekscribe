@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -16,6 +16,15 @@ export const metadata: Metadata = {
   title: "TekScribe — voice-to-summary for the trades",
   description:
     "Field-service techs record a voice note; TekScribe transcribes it, extracts parts and next steps, and writes the customer update.",
+  appleWebApp: {
+    capable: true,
+    title: "TekScribe",
+    statusBarStyle: "default",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({

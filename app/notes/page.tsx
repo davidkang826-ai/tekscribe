@@ -61,10 +61,11 @@ export default async function NotesPage() {
         ) : (
           <ul className="space-y-3">
             {rows.map((note) => (
-              <li
-                key={note.id}
-                className="rounded-2xl border border-border bg-surface p-5 shadow-sm"
-              >
+              <li key={note.id}>
+                <Link
+                  href={`/notes/${note.id}`}
+                  className="block rounded-2xl border border-border bg-surface p-5 shadow-sm hover:border-brand/40 hover:shadow transition"
+                >
                 <div className="flex items-baseline justify-between gap-3">
                   <h2 className="font-semibold text-foreground">
                     {note.job_title || "Service visit"}
@@ -101,6 +102,7 @@ export default async function NotesPage() {
                     Sent to {note.customer_email}
                   </p>
                 )}
+                </Link>
               </li>
             ))}
           </ul>
