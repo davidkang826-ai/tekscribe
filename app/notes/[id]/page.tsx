@@ -44,10 +44,10 @@ export default async function NoteDetailPage(props: {
           <Link href="/">
             <Logo size={30} />
           </Link>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-5">
             <Link
               href="/"
-              className="text-xs font-medium text-muted hover:text-foreground transition"
+              className="text-sm font-medium text-muted hover:text-foreground transition leading-none"
             >
               New note
             </Link>

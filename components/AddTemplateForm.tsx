@@ -58,32 +58,37 @@ export default function AddTemplateForm() {
     }
   }, [state.ok]);
 
-  async function handleTextFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setContent(await file.text());
-    setFileName(file.name);
-  }
-
-  async function handleImage(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setReading(true);
     setReadError(null);
     try {
-      const image = await fileToScaledDataUrl(file);
-      const res = await fetch("/api/template-from-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image }),
-      });
+      let res: Response;
+      if (file.type.startsWith("image/")) {
+        // Downscale photos in the browser so the upload stays small.
+        const image = await fileToScaledDataUrl(file);
+        res = await fetch("/api/template-from-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image }),
+        });
+      } else {
+        // PDF / Word / Excel / text — send the raw file for extraction.
+        const fd = new FormData();
+        fd.append("file", file);
+        res = await fetch("/api/template-from-file", {
+          method: "POST",
+          body: fd,
+        });
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't read that image.");
+      if (!res.ok) throw new Error(data.error || "Couldn't read that file.");
       setContent(data.content || "");
       setFileName(file.name);
     } catch (err) {
       setReadError(
-        err instanceof Error ? err.message : "Couldn't read that image."
+        err instanceof Error ? err.message : "Couldn't read that file."
       );
     } finally {
       setReading(false);
@@ -139,7 +144,7 @@ export default function AddTemplateForm() {
             <p className="text-xs text-muted mt-0.5 mb-3">
               {fileName
                 ? `Loaded from ${fileName} — review it below.`
-                : "Snap a work order or invoice and we'll turn it into a fillable template."}
+                : "Snap a photo, or upload a PDF, Word, or Excel file — we'll turn it into a fillable template."}
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               <label className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-white text-sm font-medium cursor-pointer hover:bg-brand-600 transition shadow-sm">
@@ -148,29 +153,23 @@ export default function AddTemplateForm() {
                   type="file"
                   accept="image/*"
                   capture="environment"
-                  onChange={handleImage}
+                  onChange={handleUpload}
                   className="hidden"
                 />
               </label>
               <label className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3.5 py-2 text-foreground text-sm font-medium ring-1 ring-border cursor-pointer hover:bg-slate-50 transition">
-                🖼 Photo / file
+                📎 Upload a file
                 <input
                   type="file"
-                  accept="image/*"
-                  onChange={handleImage}
-                  className="hidden"
-                />
-              </label>
-              <label className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3.5 py-2 text-foreground text-sm font-medium ring-1 ring-border cursor-pointer hover:bg-slate-50 transition">
-                ⬆ .txt
-                <input
-                  type="file"
-                  accept=".txt,.md,text/plain"
-                  onChange={handleTextFile}
+                  accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  onChange={handleUpload}
                   className="hidden"
                 />
               </label>
             </div>
+            <p className="text-[11px] text-muted mt-2">
+              PDF · PNG · JPEG · DOC/DOCX · XLS/XLSX
+            </p>
           </>
         )}
       </div>

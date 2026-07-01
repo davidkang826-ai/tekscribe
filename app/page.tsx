@@ -44,16 +44,16 @@ export default async function Home() {
         <div className="max-w-3xl mx-auto px-5 h-16 flex items-center justify-between">
           <Logo size={30} />
           {authed ? (
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-5">
               <Link
                 href="/templates"
-                className="text-xs font-medium text-muted hover:text-foreground transition"
+                className="text-sm font-medium text-muted hover:text-foreground transition leading-none"
               >
                 Templates
               </Link>
               <Link
                 href="/notes"
-                className="text-xs font-medium text-muted hover:text-foreground transition"
+                className="text-sm font-medium text-muted hover:text-foreground transition leading-none"
               >
                 Archive
               </Link>

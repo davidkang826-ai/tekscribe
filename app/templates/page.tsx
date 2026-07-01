@@ -30,10 +30,10 @@ export default async function TemplatesPage() {
           <Link href="/">
             <Logo size={30} />
           </Link>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-5">
             <Link
               href="/"
-              className="text-xs font-medium text-muted hover:text-foreground transition"
+              className="text-sm font-medium text-muted hover:text-foreground transition leading-none"
             >
               New note
             </Link>
@@ -45,7 +45,7 @@ export default async function TemplatesPage() {
       <main className="flex-1 w-full max-w-3xl mx-auto px-5 py-10 space-y-6">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Templates</h1>
-          <p className="mt-1 text-sm text-muted max-w-xl">
+          <p className="mt-1 text-sm text-muted">
             The forms you fill out by hand — work orders, invoices, inspections.
             Add one, and TekScribe fills it in from what you say on the job.
           </p>
