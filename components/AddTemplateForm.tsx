@@ -44,6 +44,7 @@ export default function AddTemplateForm() {
     {}
   );
   const formRef = useRef<HTMLFormElement>(null);
+  const [templateName, setTemplateName] = useState("");
   const [content, setContent] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [reading, setReading] = useState(false);
@@ -52,11 +53,20 @@ export default function AddTemplateForm() {
   useEffect(() => {
     if (state.ok) {
       formRef.current?.reset();
+      setTemplateName("");
       setContent("");
       setFileName(null);
       setReadError(null);
     }
   }, [state.ok]);
+
+  // "Invoice_Template.pdf" -> "Invoice Template"
+  function niceName(filename: string) {
+    return filename
+      .replace(/\.[^.]+$/, "")
+      .replace(/[_-]+/g, " ")
+      .trim();
+  }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -110,6 +120,8 @@ export default function AddTemplateForm() {
       if (!res.ok) throw new Error(data.error || "Couldn't read that file.");
       setContent(data.content || "");
       setFileName(file.name);
+      // Pre-fill the name from the file so it's ready to save in one click.
+      setTemplateName((prev) => prev || niceName(file.name));
     } catch (err) {
       setReadError(
         err instanceof Error ? err.message : "Couldn't read that file."
@@ -148,6 +160,8 @@ export default function AddTemplateForm() {
           name="name"
           type="text"
           required
+          value={templateName}
+          onChange={(e) => setTemplateName(e.target.value)}
           placeholder="Work order, Invoice, Inspection report…"
           className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
