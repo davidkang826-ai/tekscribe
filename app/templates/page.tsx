@@ -54,8 +54,11 @@ export default async function TemplatesPage() {
         <AddTemplateForm />
 
         <div>
-          <h2 className="text-sm font-semibold text-foreground mb-3">
-            Your templates {rows.length > 0 && `(${rows.length})`}
+          <h2 className="text-xl font-semibold text-foreground mb-4">
+            Your templates{" "}
+            {rows.length > 0 && (
+              <span className="font-normal text-muted">({rows.length})</span>
+            )}
           </h2>
           {rows.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center text-muted text-sm">
@@ -63,27 +66,29 @@ export default async function TemplatesPage() {
               record screen, ready to auto-fill.
             </div>
           ) : (
-            <ul className="space-y-3">
+            <ul className="grid grid-cols-3 gap-3 sm:gap-4">
               {rows.map((t) => (
-                <li
-                  key={t.id}
-                  className="rounded-2xl border border-border bg-surface p-4 shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="font-semibold text-foreground">{t.name}</h3>
-                    <form action={deleteTemplate}>
+                <li key={t.id} className="relative pt-1.5">
+                  {/* Clip tab — makes each card read as a little clipboard */}
+                  <span className="absolute top-0 left-1/2 z-10 h-3 w-10 -translate-x-1/2 rounded-md bg-brand" />
+                  <div className="relative flex min-h-[112px] flex-col items-center justify-center rounded-2xl border-2 border-border bg-surface px-3 pt-6 pb-4 text-center shadow-sm transition hover:border-brand/50 hover:shadow">
+                    <h3 className="text-sm font-semibold leading-snug text-foreground break-words">
+                      {t.name}
+                    </h3>
+                    <form
+                      action={deleteTemplate}
+                      className="absolute right-1.5 top-1.5"
+                    >
                       <input type="hidden" name="id" value={t.id} />
                       <button
                         type="submit"
-                        className="text-xs font-medium text-muted hover:text-danger transition"
+                        aria-label="Delete template"
+                        className="text-sm leading-none text-muted hover:text-danger transition"
                       >
-                        Delete
+                        ✕
                       </button>
                     </form>
                   </div>
-                  <pre className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-muted font-mono line-clamp-4">
-                    {t.content}
-                  </pre>
                 </li>
               ))}
             </ul>
