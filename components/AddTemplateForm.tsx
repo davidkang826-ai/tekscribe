@@ -210,6 +210,11 @@ export default function AddTemplateForm() {
             </p>
           </>
         )}
+        {readError && !reading && (
+          <div className="mt-3 rounded-lg bg-red-50 text-danger text-sm px-3 py-2 ring-1 ring-red-100 text-left">
+            {readError}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-3">
