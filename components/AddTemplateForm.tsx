@@ -44,11 +44,13 @@ export default function AddTemplateForm() {
     {}
   );
   const formRef = useRef<HTMLFormElement>(null);
+  const overrideRef = useRef<HTMLInputElement>(null);
   const [templateName, setTemplateName] = useState("");
   const [content, setContent] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [reading, setReading] = useState(false);
   const [readError, setReadError] = useState<string | null>(null);
+  const [dismissedConflict, setDismissedConflict] = useState(false);
 
   useEffect(() => {
     if (state.ok) {
@@ -59,6 +61,16 @@ export default function AddTemplateForm() {
       setReadError(null);
     }
   }, [state.ok]);
+
+  // Show a fresh conflict prompt each time the action returns one.
+  useEffect(() => {
+    setDismissedConflict(false);
+  }, [state]);
+
+  function replaceExisting() {
+    if (overrideRef.current) overrideRef.current.value = "1";
+    formRef.current?.requestSubmit();
+  }
 
   // "Invoice_Template.pdf" -> "Invoice Template"
   function niceName(filename: string) {
@@ -140,6 +152,7 @@ export default function AddTemplateForm() {
       className="rounded-2xl border border-border bg-surface p-5 shadow-sm space-y-3"
     >
       <h2 className="font-semibold text-foreground">Add a template</h2>
+      <input ref={overrideRef} type="hidden" name="override" defaultValue="" />
 
       {state.error && (
         <div className="rounded-lg bg-red-50 text-danger text-sm px-3 py-2.5 ring-1 ring-red-100">
@@ -149,6 +162,31 @@ export default function AddTemplateForm() {
       {readError && (
         <div className="rounded-lg bg-red-50 text-danger text-sm px-3 py-2.5 ring-1 ring-red-100">
           {readError}
+        </div>
+      )}
+      {state.conflict && !dismissedConflict && (
+        <div className="rounded-lg bg-amber-50 text-amber-900 text-sm px-3 py-3 ring-1 ring-amber-200">
+          <p>
+            A template named{" "}
+            <span className="font-semibold">“{state.conflict}”</span> already
+            exists. Replace it with this one?
+          </p>
+          <div className="flex gap-2 mt-2.5">
+            <button
+              type="button"
+              onClick={replaceExisting}
+              className="tt-pop rounded-md bg-brand px-3 py-1.5 text-white text-xs font-medium hover:bg-brand-600 transition-colors"
+            >
+              Replace it
+            </button>
+            <button
+              type="button"
+              onClick={() => setDismissedConflict(true)}
+              className="tt-pop rounded-md bg-surface px-3 py-1.5 text-foreground text-xs font-medium ring-1 ring-border hover:bg-white transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 

@@ -73,3 +73,12 @@ body {
   opacity: 0;
   animation: techtalk-fade-in 0.4s ease-out forwards;
 }
+
+/* Quick "pop" enlarge on hover for key actions */
+.tt-pop {
+  display: inline-block;
+  transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: transform;
+}
+.tt-pop:hover { transform: scale(1.12); }
+.tt-pop:active { transform: scale(0.96); }

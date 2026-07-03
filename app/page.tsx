@@ -47,13 +47,13 @@ export default async function Home() {
             <div className="flex items-center gap-5">
               <Link
                 href="/templates"
-                className="text-sm font-medium text-muted hover:text-foreground transition leading-none"
+                className="tt-pop text-sm font-medium text-muted hover:text-foreground transition-colors leading-none"
               >
                 Templates
               </Link>
               <Link
                 href="/notes"
-                className="text-sm font-medium text-muted hover:text-foreground transition leading-none"
+                className="tt-pop text-sm font-medium text-muted hover:text-foreground transition-colors leading-none"
               >
                 Archive
               </Link>

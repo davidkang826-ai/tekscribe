@@ -7,7 +7,7 @@ export default function SignOutButton() {
     <form action={signOut} className="flex items-center">
       <button
         type="submit"
-        className="text-sm font-medium text-muted hover:text-foreground transition leading-none"
+        className="tt-pop text-sm font-medium text-muted hover:text-foreground transition-colors leading-none"
       >
         Sign out
       </button>

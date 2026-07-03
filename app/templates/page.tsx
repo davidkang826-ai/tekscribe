@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import SignOutButton from "@/components/SignOutButton";
 import AddTemplateForm from "@/components/AddTemplateForm";
-import { deleteTemplate } from "@/lib/supabase/templates";
+import DeleteTemplateButton from "@/components/DeleteTemplateButton";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
@@ -33,7 +33,7 @@ export default async function TemplatesPage() {
           <div className="flex items-center gap-5">
             <Link
               href="/"
-              className="text-sm font-medium text-muted hover:text-foreground transition leading-none"
+              className="tt-pop text-sm font-medium text-muted hover:text-foreground transition-colors leading-none"
             >
               New note
             </Link>
@@ -75,19 +75,7 @@ export default async function TemplatesPage() {
                     <h3 className="text-sm font-semibold leading-snug text-foreground break-words">
                       {t.name}
                     </h3>
-                    <form
-                      action={deleteTemplate}
-                      className="absolute right-1.5 top-1.5"
-                    >
-                      <input type="hidden" name="id" value={t.id} />
-                      <button
-                        type="submit"
-                        aria-label="Delete template"
-                        className="text-sm leading-none text-muted hover:text-danger transition"
-                      >
-                        ✕
-                      </button>
-                    </form>
+                    <DeleteTemplateButton id={t.id} name={t.name} />
                   </div>
                 </li>
               ))}

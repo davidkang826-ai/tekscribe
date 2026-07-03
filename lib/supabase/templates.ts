@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export type TemplateState = { error?: string; ok?: boolean };
+export type TemplateState = { error?: string; ok?: boolean; conflict?: string };
 
 export async function addTemplate(
   _prev: TemplateState,
@@ -12,6 +12,7 @@ export async function addTemplate(
 ): Promise<TemplateState> {
   const name = String(formData.get("name") ?? "").trim();
   const content = String(formData.get("content") ?? "").trim();
+  const override = String(formData.get("override") ?? "") === "1";
 
   if (!name || !content)
     return { error: "Give the template a name and some content." };
@@ -21,6 +22,28 @@ export async function addTemplate(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  // Never allow two templates with the same name (case-insensitive).
+  const { data: existing } = await supabase
+    .from("templates")
+    .select("id")
+    .eq("user_id", user.id)
+    .ilike("name", name)
+    .limit(1);
+  const dupe = existing?.[0];
+
+  if (dupe && !override) return { conflict: name };
+
+  if (dupe && override) {
+    const { error } = await supabase
+      .from("templates")
+      .update({ name, content })
+      .eq("id", dupe.id)
+      .eq("user_id", user.id);
+    if (error) return { error: error.message };
+    revalidatePath("/templates");
+    return { ok: true };
+  }
 
   const { error } = await supabase
     .from("templates")
