@@ -9,6 +9,7 @@ import type { JobSummary, Template } from "@/lib/types";
 type Phase =
   | "idle"
   | "recording"
+  | "paused" // recording paused mid-visit; tap to resume, or wrap up
   | "transcribing"
   | "transcribeError" // transcription failed; audio kept for retry
   | "transcript" // transcript shown: Summarize / Delete
@@ -158,10 +159,30 @@ export default function Recorder({
     }
   }, []);
 
+  const pauseRecording = useCallback(() => {
+    const rec = mediaRecorderRef.current;
+    if (rec?.state === "recording") {
+      rec.pause();
+      stopTimer();
+      setPhase("paused");
+    }
+  }, []);
+
+  const resumeRecording = useCallback(() => {
+    const rec = mediaRecorderRef.current;
+    if (rec?.state === "paused") {
+      rec.resume();
+      setPhase("recording");
+      timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
+    }
+  }, []);
+
+  // "Wrap up" — end the visit recording (works whether recording or paused).
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current?.state === "recording") {
+    const rec = mediaRecorderRef.current;
+    if (rec && (rec.state === "recording" || rec.state === "paused")) {
       setPhase("transcribing");
-      mediaRecorderRef.current.stop();
+      rec.stop();
     }
   }, []);
 
@@ -275,12 +296,17 @@ export default function Recorder({
   }
 
   const isRecording = phase === "recording";
+  const isPaused = phase === "paused";
   const showButton =
-    phase === "idle" || phase === "recording" || phase === "transcribing";
+    phase === "idle" ||
+    phase === "recording" ||
+    phase === "paused" ||
+    phase === "transcribing";
 
   const statusText: Record<string, string> = {
-    idle: "Tap to record your job note",
-    recording: "Listening… tap to stop",
+    idle: "Tap to record your visit",
+    recording: "Recording… tap to pause",
+    paused: "Paused — tap to resume",
     transcribing: "Transcribing…",
   };
 
@@ -290,10 +316,22 @@ export default function Recorder({
       {showButton && (
         <>
           <button
-            onClick={isRecording ? stopRecording : startRecording}
+            onClick={
+              isRecording
+                ? pauseRecording
+                : isPaused
+                  ? resumeRecording
+                  : startRecording
+            }
             disabled={phase === "transcribing"}
             className="relative flex items-center justify-center w-44 h-44 rounded-full disabled:opacity-60 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-brand/30"
-            aria-label={isRecording ? "Stop recording" : "Start recording"}
+            aria-label={
+              isRecording
+                ? "Pause recording"
+                : isPaused
+                  ? "Resume recording"
+                  : "Start recording"
+            }
           >
             {isRecording && (
               <>
@@ -302,23 +340,41 @@ export default function Recorder({
               </>
             )}
             <span
-              className={`relative flex items-center justify-center w-36 h-36 rounded-full bg-surface shadow-lg ring-1 ring-border ${
-                isRecording ? "tt-pulse" : ""
-              }`}
+              className={`relative flex items-center justify-center w-36 h-36 rounded-full bg-surface shadow-lg ${
+                isPaused ? "ring-2 ring-accent" : "ring-1 ring-border"
+              } ${isRecording ? "tt-pulse" : ""}`}
             >
               <LogoMark size={84} />
             </span>
           </button>
 
-          <div className="mt-5 h-6 text-center">
-            {isRecording ? (
-              <span className="font-mono text-lg text-brand tabular-nums">
-                {formatTime(elapsed)}
-              </span>
+          <div className="mt-5 text-center">
+            {isRecording || isPaused ? (
+              <>
+                <span
+                  className={`font-mono text-lg tabular-nums ${
+                    isPaused ? "text-accent-600" : "text-brand"
+                  }`}
+                >
+                  {formatTime(elapsed)}
+                </span>
+                <div className="text-xs text-muted mt-0.5">
+                  {statusText[phase]}
+                </div>
+              </>
             ) : (
               <span className="text-muted text-sm">{statusText[phase]}</span>
             )}
           </div>
+
+          {(isRecording || isPaused) && (
+            <button
+              onClick={stopRecording}
+              className="tt-pop mt-4 inline-flex items-center gap-2 rounded-xl bg-brand px-7 py-3 text-white font-semibold text-base shadow-sm hover:bg-brand-600 transition"
+            >
+              ✓ Wrap up
+            </button>
+          )}
         </>
       )}
 
