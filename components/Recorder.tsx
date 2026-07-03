@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LogoMark } from "./Logo";
 import SendToCustomer from "./SendToCustomer";
-import { saveNote, updateNoteSummary } from "@/lib/supabase/notes";
+import { saveNote } from "@/lib/supabase/notes";
 import type { JobSummary, Template } from "@/lib/types";
 
 type Phase =
@@ -11,11 +11,13 @@ type Phase =
   | "recording"
   | "transcribing"
   | "transcribeError" // transcription failed; audio kept for retry
-  | "transcript" // raw transcript shown: Save / Delete
-  | "saved" // transcript saved: Summarize? / Delete
+  | "transcript" // transcript shown: Summarize / Delete
   | "summarizing" // calling the AI
-  | "summarized" // AI summary (writes in live), then send options
+  | "summarized" // AI summary → review steps (confirm → archive → send)
   | "confirmDelete"; // Exit / Record again
+
+// Steps within the "summarized" phase.
+type ReviewStep = "confirm" | "archive" | "send";
 
 function formatTime(s: number) {
   const m = Math.floor(s / 60);
@@ -75,6 +77,10 @@ export default function Recorder({
   const [summary, setSummary] = useState<JobSummary | null>(null);
   const [noteId, setNoteId] = useState<string | null>(null);
   const [writingDone, setWritingDone] = useState(false);
+  const [reviewStep, setReviewStep] = useState<ReviewStep>("confirm");
+  const [archiveState, setArchiveState] = useState<
+    "idle" | "saving" | "saved"
+  >("idle");
   const [error, setError] = useState<string | null>(null);
   // Where to return to if the user cancels a delete.
   const [returnPhase, setReturnPhase] = useState<Phase>("transcript");
@@ -107,6 +113,8 @@ export default function Recorder({
     setTemplateId("");
     setFilled(null);
     setCustomerName("");
+    setReviewStep("confirm");
+    setArchiveState("idle");
     lastBlobRef.current = null;
   };
 
@@ -181,16 +189,6 @@ export default function Recorder({
     transcribe(lastBlobRef.current);
   }
 
-  async function handleSave() {
-    setError(null);
-    setPhase("saved");
-    if (canSave) {
-      const result = await saveNote({ transcript, summary: null, customerName });
-      if (result.error) setError(result.error);
-      else setNoteId(result.id ?? null);
-    }
-  }
-
   async function handleSummarize() {
     setError(null);
     setPhase("summarizing");
@@ -204,12 +202,38 @@ export default function Recorder({
       if (!res.ok) throw new Error(data.error || "Summarization failed.");
       setSummary(data.summary as JobSummary);
       setWritingDone(false);
+      setReviewStep("confirm");
       setPhase("summarized");
-      // Attach the summary to the saved note in the background.
-      if (noteId) updateNoteSummary(noteId, data.summary as JobSummary);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Summarization failed.");
-      setPhase("saved");
+      setPhase("transcript");
+    }
+  }
+
+  // "Tweak it" — go back to edit the transcript and re-summarize.
+  function tweakSummary() {
+    setSummary(null);
+    setWritingDone(false);
+    setReviewStep("confirm");
+    setPhase("transcript");
+  }
+
+  async function handleArchive() {
+    if (!canSave) {
+      setArchiveState("saved");
+      setReviewStep("send");
+      return;
+    }
+    setArchiveState("saving");
+    setError(null);
+    const result = await saveNote({ transcript, summary, customerName });
+    if (result.error) {
+      setError(result.error);
+      setArchiveState("idle");
+    } else {
+      setNoteId(result.id ?? null);
+      setArchiveState("saved");
+      setReviewStep("send");
     }
   }
 
@@ -334,14 +358,13 @@ export default function Recorder({
         </div>
       )}
 
-      {/* Transcript — editable before save, read-only after */}
+      {/* Transcript — editable while reviewing, read-only after summarizing */}
       {(phase === "transcript" ||
-        phase === "saved" ||
         phase === "summarizing" ||
         phase === "summarized") && (
         <div className="mt-2 w-full">
           <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-2">
-            {phase === "transcript" ? "Your note" : "Your note (saved)"}
+            Transcript of your memo
           </label>
           {phase === "transcript" ? (
             <textarea
@@ -379,11 +402,11 @@ export default function Recorder({
             {phase === "transcript" && (
               <>
                 <button
-                  onClick={handleSave}
+                  onClick={handleSummarize}
                   disabled={!transcript.trim()}
                   className="inline-flex items-center gap-2 rounded-xl bg-brand px-8 py-3.5 text-white font-semibold text-base shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
                 >
-                  💾 Save
+                  ✨ Summarize with AI
                 </button>
                 <button
                   onClick={() => askDelete("transcript")}
@@ -394,27 +417,10 @@ export default function Recorder({
               </>
             )}
 
-            {phase === "saved" && (
-              <>
-                <button
-                  onClick={handleSummarize}
-                  className="inline-flex items-center gap-2 rounded-xl bg-brand px-8 py-3.5 text-white font-semibold text-base shadow-sm hover:bg-brand-600 transition"
-                >
-                  ✨ Summarize with AI?
-                </button>
-                <button
-                  onClick={() => askDelete("saved")}
-                  className="inline-flex items-center gap-2 rounded-xl bg-surface px-8 py-3.5 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
-                >
-                  🗑 Delete
-                </button>
-              </>
-            )}
-
             {phase === "summarizing" && (
               <div className="inline-flex items-center gap-2 text-brand text-sm font-medium">
                 <LogoMark size={20} className="tt-pulse" />
-                Reading your note and writing it up…
+                Reading your memo and writing it up…
               </div>
             )}
           </div>
@@ -471,11 +477,14 @@ export default function Recorder({
 
           <SummarySection title="Work done" items={summary.workDone} />
           <SummarySection
-            title="Parts & materials"
+            title="Parts used"
             items={summary.partsAndMaterials}
             accent
           />
-          <SummarySection title="Next steps" items={summary.nextSteps} />
+          <SummarySection
+            title="Next steps & things to buy"
+            items={summary.nextSteps}
+          />
 
           {summary.customerMessage && (
             <div className="mt-4 rounded-xl bg-brand-50 p-4">
@@ -491,9 +500,69 @@ export default function Recorder({
             </div>
           )}
 
-          {/* Send + templates appear once the AI finishes writing */}
+          {/* Guided review: confirm → archive → send */}
           {writingDone && (
             <div className="tt-fade-in">
+              {reviewStep === "confirm" && (
+                <div className="mt-5 border-t border-border pt-5 text-center">
+                  <p className="font-medium text-foreground">
+                    Does this summary look right?
+                  </p>
+                  <div className="mt-3 flex flex-wrap justify-center gap-3">
+                    <button
+                      onClick={() =>
+                        setReviewStep(canSave ? "archive" : "send")
+                      }
+                      className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-white font-semibold text-base shadow-sm hover:bg-brand-600 transition"
+                    >
+                      👍 Looks good
+                    </button>
+                    <button
+                      onClick={tweakSummary}
+                      className="inline-flex items-center gap-2 rounded-xl bg-surface px-6 py-3 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
+                    >
+                      ✏️ Tweak it
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {reviewStep === "archive" && (
+                <div className="mt-5 border-t border-border pt-5 text-center">
+                  <p className="font-medium text-foreground">
+                    Save this visit to your archive?
+                  </p>
+                  <p className="text-sm text-muted mt-1 mb-3">
+                    Keeps the transcript and summary so you can pull it up later.
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-3">
+                    <button
+                      onClick={handleArchive}
+                      disabled={archiveState === "saving"}
+                      className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-white font-semibold text-base shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
+                    >
+                      {archiveState === "saving" ? "Saving…" : "💾 Archive it"}
+                    </button>
+                    <button
+                      onClick={() => setReviewStep("send")}
+                      className="inline-flex items-center gap-2 rounded-xl bg-surface px-6 py-3 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
+                    >
+                      Skip
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Send step: customer message + templates */}
+          {writingDone && reviewStep === "send" && (
+            <div className="tt-fade-in">
+              {archiveState === "saved" && canSave && (
+                <p className="mt-4 text-center text-sm font-medium text-success">
+                  ✓ Saved to your archive
+                </p>
+              )}
               <SendToCustomer summary={summary} defaultReplyTo={replyTo} />
 
               {templates.length > 0 && (

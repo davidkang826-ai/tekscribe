@@ -10,7 +10,8 @@ Rules:
 - Be succinct. Bullets are short fragments, not sentences.
 - Capture every part/material mentioned (sizes, quantities, fittings, refrigerant, breakers, etc.) — these are billable and must not be lost.
 - Only include information present in the transcript. Never invent parts, prices, or work.
-- "nextSteps" = follow-ups, return visits, parts to order, or recommendations the tech mentioned. Empty array if none.
+- "partsAndMaterials" = parts/materials USED on this job (billable). Empty array if none.
+- "nextSteps" = everything still to do: follow-ups, return visits, recommendations, AND anything the customer or tech needs to BUY or order (parts to pick up, materials to order). Prefix a purchase with "Buy: " (e.g. "Buy: 3/4-inch shutoff valve"). Empty array if none.
 - "customerMessage" = a short, friendly, professional paragraph (no jargon) addressed to the HOMEOWNER/CUSTOMER summarizing what was done and any next steps. Warm but concise.
 
 CRITICAL:
