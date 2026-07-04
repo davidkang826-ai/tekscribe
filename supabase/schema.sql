@@ -121,3 +121,38 @@ create policy "own templates - delete" on public.templates
 
 create index if not exists templates_user_created_idx
   on public.templates (user_id, created_at desc);
+
+-- ---------------------------------------------------------------------------
+-- customers: a per-technician contact directory so email/phone are saved once
+-- and recalled next time that customer is served.
+-- ---------------------------------------------------------------------------
+create table if not exists public.customers (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  name text not null,
+  email text,
+  phone text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.customers enable row level security;
+
+drop policy if exists "own customers - select" on public.customers;
+create policy "own customers - select" on public.customers
+  for select using (auth.uid() = user_id);
+
+drop policy if exists "own customers - insert" on public.customers;
+create policy "own customers - insert" on public.customers
+  for insert with check (auth.uid() = user_id);
+
+drop policy if exists "own customers - update" on public.customers;
+create policy "own customers - update" on public.customers
+  for update using (auth.uid() = user_id);
+
+drop policy if exists "own customers - delete" on public.customers;
+create policy "own customers - delete" on public.customers
+  for delete using (auth.uid() = user_id);
+
+-- One entry per customer name (case-insensitive) per technician.
+create unique index if not exists customers_user_name_idx
+  on public.customers (user_id, lower(name));

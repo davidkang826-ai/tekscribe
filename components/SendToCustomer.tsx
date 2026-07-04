@@ -35,13 +35,17 @@ function buildSmsBody(summary: JobSummary): string {
 export default function SendToCustomer({
   summary,
   defaultReplyTo = "",
+  defaultCustomerEmail = "",
+  defaultCustomerPhone = "",
 }: {
   summary: JobSummary;
   defaultReplyTo?: string;
+  defaultCustomerEmail?: string;
+  defaultCustomerPhone?: string;
 }) {
   const [channel, setChannel] = useState<Channel>("email");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState(defaultCustomerEmail);
+  const [phone, setPhone] = useState(defaultCustomerPhone);
   const [subject, setSubject] = useState(
     `Summary of your service visit — ${summary.jobTitle}`
   );

@@ -5,11 +5,12 @@ import Recorder from "@/components/Recorder";
 import SignOutButton from "@/components/SignOutButton";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import type { Template } from "@/lib/types";
+import type { Template, Customer } from "@/lib/types";
 
 export default async function Home() {
   let authed = false;
   let templates: Template[] = [];
+  let customers: Customer[] = [];
   let replyTo = "";
 
   // Once Supabase is configured, the app requires a verified account with a
@@ -34,6 +35,12 @@ export default async function Home() {
       .select("id, name, content")
       .order("created_at", { ascending: false });
     templates = tpls ?? [];
+
+    const { data: custs } = await supabase
+      .from("customers")
+      .select("name, email, phone")
+      .order("name", { ascending: true });
+    customers = custs ?? [];
 
     authed = true;
   }
@@ -70,16 +77,21 @@ export default async function Home() {
       <main className="flex-1 w-full max-w-3xl mx-auto px-5 py-10 sm:py-14">
         <div className="text-center mb-10">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            Congrats on finishing the job!
+            Talk through your visit
           </h1>
           <p className="mt-2 text-muted max-w-lg mx-auto">
-            Record a quick voice note from wherever you are. Don&apos;t worry
-            about the pauses, awkward silences, or corrections. We&apos;ll take
-            care of that for you.
+            Record as you work or when you wrap up — pause and pick it back up
+            anytime. Don&apos;t worry about the pauses, awkward silences, or
+            corrections. We&apos;ll take care of that for you.
           </p>
         </div>
 
-        <Recorder canSave={authed} templates={templates} replyTo={replyTo} />
+        <Recorder
+          canSave={authed}
+          templates={templates}
+          customers={customers}
+          replyTo={replyTo}
+        />
       </main>
 
       <footer className="w-full border-t border-border py-6 text-center text-xs text-muted space-y-1">

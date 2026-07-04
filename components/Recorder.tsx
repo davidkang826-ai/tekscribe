@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LogoMark } from "./Logo";
 import SendToCustomer from "./SendToCustomer";
 import { saveNote } from "@/lib/supabase/notes";
-import type { JobSummary, Template } from "@/lib/types";
+import { upsertCustomer } from "@/lib/supabase/customers";
+import type { JobSummary, Template, Customer } from "@/lib/types";
 
 type Phase =
   | "idle"
@@ -66,10 +67,12 @@ function Typewriter({
 export default function Recorder({
   canSave = false,
   templates = [],
+  customers = [],
   replyTo = "",
 }: {
   canSave?: boolean;
   templates?: Template[];
+  customers?: Customer[];
   replyTo?: string;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
@@ -86,6 +89,8 @@ export default function Recorder({
   // Where to return to if the user cancels a delete.
   const [returnPhase, setReturnPhase] = useState<Phase>("transcript");
   const [customerName, setCustomerName] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
 
   // Template filling
   const [templateId, setTemplateId] = useState("");
@@ -114,10 +119,45 @@ export default function Recorder({
     setTemplateId("");
     setFilled(null);
     setCustomerName("");
+    setCustomerEmail("");
+    setCustomerPhone("");
     setReviewStep("confirm");
     setArchiveState("idle");
     lastBlobRef.current = null;
   };
+
+  // Recall a saved customer's details when their name is picked/typed.
+  function onCustomerName(value: string) {
+    setCustomerName(value);
+    const match = customers.find(
+      (c) => c.name.trim().toLowerCase() === value.trim().toLowerCase()
+    );
+    if (match) {
+      setCustomerEmail(match.email ?? "");
+      setCustomerPhone(match.phone ?? "");
+    }
+  }
+
+  // One-tap "add to contacts" via a downloadable vCard.
+  function addToContacts() {
+    const lines = [
+      "BEGIN:VCARD",
+      "VERSION:3.0",
+      `FN:${customerName}`,
+      customerPhone ? `TEL;TYPE=CELL:${customerPhone}` : "",
+      customerEmail ? `EMAIL:${customerEmail}` : "",
+      "END:VCARD",
+    ].filter(Boolean);
+    const blob = new Blob([lines.join("\n")], { type: "text/vcard" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${customerName || "contact"}.vcf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 
   const askDelete = (from: Phase) => {
     setReturnPhase(from);
@@ -247,7 +287,12 @@ export default function Recorder({
     }
     setArchiveState("saving");
     setError(null);
-    const result = await saveNote({ transcript, summary, customerName });
+    const result = await saveNote({
+      transcript,
+      summary,
+      customerName,
+      customerEmail,
+    });
     if (result.error) {
       setError(result.error);
       setArchiveState("idle");
@@ -255,6 +300,14 @@ export default function Recorder({
       setNoteId(result.id ?? null);
       setArchiveState("saved");
       setReviewStep("send");
+    }
+    // Remember this customer for next time (fire-and-forget).
+    if (customerName.trim()) {
+      upsertCustomer({
+        name: customerName,
+        email: customerEmail,
+        phone: customerPhone,
+      });
     }
   }
 
@@ -436,20 +489,57 @@ export default function Recorder({
           )}
 
           {phase === "transcript" && (
-            <div className="mt-3">
-              <label className="block text-xs font-medium text-muted mb-1">
+            <div className="mt-3 rounded-xl border border-border bg-surface p-3 space-y-2">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-muted">
                 Customer (optional)
               </label>
               <input
                 type="text"
+                list="tt-customers"
                 value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="e.g. Johnson — 12 Elm St"
+                onChange={(e) => onCustomerName(e.target.value)}
+                placeholder="Name — start typing to recall"
                 className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
               />
-              <p className="mt-1 text-xs text-muted">
-                Add a name to group this job with others for the same customer.
-              </p>
+              <datalist id="tt-customers">
+                {customers.map((c) => (
+                  <option key={c.name} value={c.name} />
+                ))}
+              </datalist>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  type="email"
+                  inputMode="email"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  value={customerEmail}
+                  onChange={(e) => setCustomerEmail(e.target.value)}
+                  placeholder="Email"
+                  className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                />
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  placeholder="Phone"
+                  className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-muted">
+                  Saved for next time — pull them back up by name.
+                </p>
+                {customerName.trim() && (customerEmail || customerPhone) && (
+                  <button
+                    type="button"
+                    onClick={addToContacts}
+                    className="tt-pop shrink-0 text-xs font-medium text-brand hover:underline"
+                  >
+                    📇 Add to contacts
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -619,7 +709,12 @@ export default function Recorder({
                   ✓ Saved to your archive
                 </p>
               )}
-              <SendToCustomer summary={summary} defaultReplyTo={replyTo} />
+              <SendToCustomer
+                summary={summary}
+                defaultReplyTo={replyTo}
+                defaultCustomerEmail={customerEmail}
+                defaultCustomerPhone={customerPhone}
+              />
 
               {templates.length > 0 && (
                 <div className="mt-5 border-t border-border pt-5">
