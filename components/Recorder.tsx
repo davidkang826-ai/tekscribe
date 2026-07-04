@@ -490,15 +490,12 @@ export default function Recorder({
 
           {phase === "transcript" && (
             <div className="mt-3 rounded-xl border border-border bg-surface p-3 space-y-2">
-              <label className="block text-xs font-semibold uppercase tracking-wide text-muted">
-                Customer (optional)
-              </label>
               <input
                 type="text"
                 list="tt-customers"
                 value={customerName}
                 onChange={(e) => onCustomerName(e.target.value)}
-                placeholder="Name — start typing to recall"
+                placeholder="Customer name"
                 className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
               />
               <datalist id="tt-customers">
@@ -526,20 +523,15 @@ export default function Recorder({
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
                 />
               </div>
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs text-muted">
-                  Saved for next time — pull them back up by name.
-                </p>
-                {customerName.trim() && (customerEmail || customerPhone) && (
-                  <button
-                    type="button"
-                    onClick={addToContacts}
-                    className="tt-pop shrink-0 text-xs font-medium text-brand hover:underline"
-                  >
-                    📇 Add to contacts
-                  </button>
-                )}
-              </div>
+              {customerName.trim() && (customerEmail || customerPhone) && (
+                <button
+                  type="button"
+                  onClick={addToContacts}
+                  className="tt-pop text-xs font-medium text-brand hover:underline"
+                >
+                  📇 Add to contacts
+                </button>
+              )}
             </div>
           )}
 
@@ -566,7 +558,7 @@ export default function Recorder({
             {phase === "summarizing" && (
               <div className="inline-flex items-center gap-2 text-brand text-sm font-medium">
                 <LogoMark size={20} className="tt-pulse" />
-                Reading your memo and writing it up…
+                Writing it up…
               </div>
             )}
           </div>
@@ -651,9 +643,7 @@ export default function Recorder({
             <div className="tt-fade-in">
               {reviewStep === "confirm" && (
                 <div className="mt-5 border-t border-border pt-5 text-center">
-                  <p className="font-medium text-foreground">
-                    Does this summary look right?
-                  </p>
+                  <p className="font-medium text-foreground">Look right?</p>
                   <div className="mt-3 flex flex-wrap justify-center gap-3">
                     <button
                       onClick={() =>
@@ -675,11 +665,8 @@ export default function Recorder({
 
               {reviewStep === "archive" && (
                 <div className="mt-5 border-t border-border pt-5 text-center">
-                  <p className="font-medium text-foreground">
-                    Save this visit to your archive?
-                  </p>
-                  <p className="text-sm text-muted mt-1 mb-3">
-                    Keeps the transcript and summary so you can pull it up later.
+                  <p className="font-medium text-foreground mb-3">
+                    Save to archive?
                   </p>
                   <div className="flex flex-wrap justify-center gap-3">
                     <button

@@ -283,23 +283,8 @@ export default function SendToCustomer({
           </button>
         </div>
 
-        {isEmail ? (
-          !validEmail ? (
-            <p className="text-xs text-accent-600">
-              Enter the customer&apos;s email above to send.
-            </p>
-          ) : (
-            <p className="text-xs text-muted">
-              TekScribe sends this email for you — works on any device. Replies go
-              straight to your inbox.
-            </p>
-          )
-        ) : (
-          <p className="text-xs text-muted">
-            Opens your phone&apos;s Messages app with the text filled in, sent
-            from your own number. (Texting works from a phone; on a computer use
-            “Copy text.”)
-          </p>
+        {isEmail && !validEmail && (
+          <p className="text-xs text-accent-600">Enter an email to send.</p>
         )}
       </div>
     </div>
