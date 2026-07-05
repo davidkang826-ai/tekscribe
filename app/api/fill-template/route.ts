@@ -9,7 +9,8 @@ Rules:
 - Keep the template's exact structure, labels, headings, and order.
 - Fill in every field you can from the job note (work performed, parts/materials, quantities, sizes, recommendations, etc.).
 - Where the template has a placeholder (e.g. [name], {date}, ____, <address>), replace it with the real value from the note.
-- If a field genuinely cannot be determined from the note, leave it as "[—]" so the tech can fill it in.
+- If a field genuinely cannot be determined from the note, leave it as "[blank]" so the tech can fill it in.
+- Do not use em dashes (—). Use commas or separate sentences.
 - Never invent specific facts (prices, names, dates) that are not in the note.
 - Output ONLY the completed template as plain text. No preamble, no explanation.`;
 

@@ -51,7 +51,7 @@ export async function POST(request: Request) {
         if (!replyTo) replyTo = profile?.reply_to_email || user.email || undefined;
       }
     } catch {
-      // Supabase not configured (open mode) — send with defaults.
+      // Supabase not configured (open mode), send with defaults.
     }
 
     // Display name = the tech's business; address = our verified domain.

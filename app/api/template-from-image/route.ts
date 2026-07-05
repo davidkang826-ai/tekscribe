@@ -10,7 +10,8 @@ Rules:
 - For each blank a technician would fill in, add a placeholder in square brackets describing it, e.g. "Customer name: [name]", "Address: [address]", "Work performed: [work]", "Parts used: [parts]".
 - Preserve the order and grouping of the original form.
 - Do not invent fields that aren't on the form, and do not fill in any values.
-- Output ONLY the template text — no explanation.`;
+- Do not use em dashes (—). Use commas or separate sentences.
+- Output ONLY the template text. No explanation.`;
 
 export async function POST(request: Request) {
   try {

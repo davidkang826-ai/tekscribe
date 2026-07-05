@@ -1,6 +1,6 @@
 import { getOpenAI, TRANSCRIPTION_MODEL } from "@/lib/openai";
 
-// Audio upload + Whisper call — must run on Node, not edge.
+// Audio upload + Whisper call, must run on Node, not edge.
 export const runtime = "nodejs";
 export const maxDuration = 60;
 

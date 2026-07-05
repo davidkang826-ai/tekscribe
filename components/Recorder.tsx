@@ -266,7 +266,7 @@ export default function Recorder({
     }
   }, []);
 
-  // "Wrap up" — end the visit recording (works whether recording or paused).
+  // "Wrap up", end the visit recording (works whether recording or paused).
   const stopRecording = useCallback(() => {
     const rec = mediaRecorderRef.current;
     if (rec && (rec.state === "recording" || rec.state === "paused")) {
@@ -320,7 +320,7 @@ export default function Recorder({
     }
   }
 
-  // "Tweak it" — go back to edit the transcript and re-summarize.
+  // "Tweak it", go back to edit the transcript and re-summarize.
   function tweakSummary() {
     setSummary(null);
     setWritingDone(false);
@@ -460,13 +460,13 @@ export default function Recorder({
   const statusText: Record<string, string> = {
     idle: "Tap to record your visit",
     recording: "Recording… tap to pause",
-    paused: "Paused — tap to resume",
+    paused: "Paused, tap to resume",
     transcribing: "Transcribing…",
   };
 
   return (
     <div className="flex flex-col items-center w-full max-w-xl mx-auto">
-      {/* Record button — only while idle/recording/transcribing */}
+      {/* Record button, only while idle/recording/transcribing */}
       {showButton && (
         <>
           <button
@@ -571,15 +571,14 @@ export default function Recorder({
         </div>
       )}
 
-      {/* Transcription failed — the recording is kept so it can be retried */}
+      {/* Transcription failed, the recording is kept so it can be retried */}
       {phase === "transcribeError" && (
         <div className="mt-4 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm text-center">
           <p className="text-foreground font-medium">
             Transcription didn&apos;t go through
           </p>
           <p className="text-sm text-muted mt-1 mb-4">
-            Your recording is safe — no need to say it again. Give it another
-            try.
+            Your recording is safe. No need to say it again, just try once more.
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             <button
@@ -601,7 +600,7 @@ export default function Recorder({
         </div>
       )}
 
-      {/* Transcript — editable while reviewing, read-only after summarizing */}
+      {/* Transcript, editable while reviewing, read-only after summarizing */}
       {(phase === "transcript" ||
         phase === "summarizing" ||
         phase === "summarized") && (
@@ -792,7 +791,7 @@ export default function Recorder({
         </div>
       )}
 
-      {/* AI summary — writes in live */}
+      {/* AI summary, writes in live */}
       {phase === "summarized" && summary && (
         <div className="mt-6 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-3">

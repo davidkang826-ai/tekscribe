@@ -19,7 +19,7 @@ export default async function OnboardingPage() {
     .eq("id", user.id)
     .single();
 
-  // Already onboarded — skip straight to the app.
+  // Already onboarded, skip straight to the app.
   if (profile?.phone) redirect("/");
 
   return (

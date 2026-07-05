@@ -6,14 +6,15 @@ import type OpenAI from "openai";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const TEMPLATE_INSTRUCTIONS = `You convert a document (a form used by a field-service technician — work order, invoice, inspection report, etc.) into a reusable fill-in TEMPLATE as plain text.
+const TEMPLATE_INSTRUCTIONS = `You convert a document (a form used by a field-service technician, e.g. a work order, invoice, or inspection report) into a reusable fill-in TEMPLATE as plain text.
 
 Rules:
 - Transcribe the document's structure: its title, section headings, and every field label.
 - For each blank a technician would fill in, add a placeholder in square brackets describing it, e.g. "Customer name: [name]", "Address: [address]", "Work performed: [work]", "Parts used: [parts]".
 - Preserve the order and grouping of the original.
 - Do not invent fields that aren't in the document, and do not fill in any values.
-- Output ONLY the template text — no explanation.`;
+- Do not use em dashes (—). Use commas or separate sentences.
+- Output ONLY the template text. No explanation.`;
 
 export async function POST(request: Request) {
   try {
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
     const buf = Buffer.from(await file.arrayBuffer());
     const openai = getOpenAI();
 
-    // PDF — send natively; GPT-4o reads both the text and the page layout.
+    // PDF: send natively; GPT-4o reads both the text and the page layout.
     if (name.endsWith(".pdf") || file.type === "application/pdf") {
       const dataUrl = `data:application/pdf;base64,${buf.toString("base64")}`;
       const completion = await openai.chat.completions.create({

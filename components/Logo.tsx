@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 
 /**
- * TekScribe mark: a clipboard with a heartbeat/pulse line — the field-service
+ * TekScribe mark: a clipboard with a heartbeat/pulse line, the field-service
  * job report, brought to life by voice. Outline style, themed to the brand blue.
  */
 export function LogoMark({
@@ -37,7 +37,7 @@ export function LogoMark({
         <rect x="40" y="23" width="20" height="11" rx="4" />
         {/* Clip hole */}
         <circle cx="50" cy="22" r="2" />
-        {/* Heartbeat / pulse line — centered QRS spike, small P/T waves */}
+        {/* Heartbeat / pulse line, centered QRS spike, small P/T waves */}
         <polyline points="26,55 36,55 40,51 43,55 47,55 48,61 51,33 53,68 56,55 60,55 64,51 67,55 74,55" />
       </g>
     </svg>

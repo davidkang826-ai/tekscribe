@@ -89,7 +89,7 @@ export default function AddTemplateForm() {
     const MAX_BYTES = 4 * 1024 * 1024;
     if (!isImage && file.size > MAX_BYTES) {
       setReadError(
-        `That file is ${(file.size / 1024 / 1024).toFixed(1)} MB — the max is 4 MB. Try a smaller PDF, or use “Take a photo” of each page instead.`
+        `That file is ${(file.size / 1024 / 1024).toFixed(1)} MB. The max is 4 MB. Try a smaller PDF, or use “Take a photo” of each page instead.`
       );
       e.target.value = "";
       return;
@@ -108,7 +108,7 @@ export default function AddTemplateForm() {
           body: JSON.stringify({ image }),
         });
       } else {
-        // PDF / Word / Excel / text — send the raw file for extraction.
+        // PDF / Word / Excel / text, send the raw file for extraction.
         const fd = new FormData();
         fd.append("file", file);
         res = await fetch("/api/template-from-file", {
@@ -124,7 +124,7 @@ export default function AddTemplateForm() {
       } catch {
         if (res.status === 413) {
           throw new Error(
-            "That file is too large — try one under 4 MB, or photograph the pages."
+            "That file is too large. Try one under 4 MB, or photograph the pages."
           );
         }
         throw new Error(`Upload failed (${res.status}).`);
@@ -219,8 +219,8 @@ export default function AddTemplateForm() {
             </p>
             <p className="text-xs text-muted mt-0.5 mb-3">
               {fileName
-                ? `Loaded from ${fileName} — review it below.`
-                : "Snap a photo, or upload a PDF, Word, or Excel file — we'll turn it into a fillable template."}
+                ? `Loaded from ${fileName}. Review it below.`
+                : "Snap a photo, or upload a PDF, Word, or Excel file. We'll turn it into a fillable template."}
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               <label className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-white text-sm font-medium cursor-pointer hover:bg-brand-600 transition shadow-sm">
@@ -276,7 +276,7 @@ export default function AddTemplateForm() {
         <p className="mt-1.5 text-xs text-muted">
           Mark blanks with things like{" "}
           <code className="text-foreground">[name]</code> or{" "}
-          <code className="text-foreground">____</code> — TekScribe fills them
+          <code className="text-foreground">____</code>. TekScribe fills them in
           from what you say.
         </p>
       </div>

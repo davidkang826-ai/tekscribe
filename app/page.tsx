@@ -82,7 +82,7 @@ export default async function Home() {
             Your visit, in your words
           </h1>
           <p className="mt-2 text-muted max-w-lg mx-auto">
-            Just talk — mess and all. We write it up clean.
+            Just talk, mess and all. We write it up clean.
           </p>
         </div>
 

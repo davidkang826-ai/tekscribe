@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 
-export const metadata = { title: "Privacy Policy — TekScribe" };
+export const metadata = { title: "TekScribe Privacy Policy" };
 
 export default function PrivacyPage() {
   return (
@@ -56,16 +56,16 @@ export default function PrivacyPage() {
           <p>We use trusted processors to run TekScribe:</p>
           <ul className="list-disc pl-5 space-y-1 mt-2">
             <li>
-              <strong>OpenAI</strong> — transcription and AI summarization.
+              <strong>OpenAI</strong> for transcription and AI summarization.
             </li>
             <li>
-              <strong>Supabase</strong> — authentication and data storage.
+              <strong>Supabase</strong> for authentication and data storage.
             </li>
             <li>
-              <strong>Resend</strong> — sending customer emails.
+              <strong>Resend</strong> for sending customer emails.
             </li>
             <li>
-              <strong>Vercel</strong> — application hosting.
+              <strong>Vercel</strong> for application hosting.
             </li>
           </ul>
           <p className="mt-2">

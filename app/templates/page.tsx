@@ -46,8 +46,9 @@ export default async function TemplatesPage() {
         <div>
           <h1 className="text-xl font-semibold text-foreground">Templates</h1>
           <p className="mt-1 text-sm text-muted">
-            The forms you fill out by hand — work orders, invoices, inspections.
-            Add one, and TekScribe fills it in from what you say on the job.
+            The forms you fill out by hand, like work orders, invoices, and
+            inspections. Add one, and TekScribe fills it in from what you say on
+            the job.
           </p>
         </div>
 
@@ -69,7 +70,7 @@ export default async function TemplatesPage() {
             <ul className="grid grid-cols-3 gap-3 sm:gap-4">
               {rows.map((t) => (
                 <li key={t.id} className="relative pt-1.5">
-                  {/* Clip tab — makes each card read as a little clipboard */}
+                  {/* Clip tab, makes each card read as a little clipboard */}
                   <span className="absolute top-0 left-1/2 z-10 h-3 w-10 -translate-x-1/2 rounded-md bg-brand" />
                   <div className="relative flex min-h-[112px] flex-col items-center justify-center rounded-2xl border-2 border-border bg-surface px-3 pt-6 pb-4 text-center shadow-sm transition hover:border-brand/50 hover:shadow">
                     <h3 className="text-sm font-semibold leading-snug text-foreground break-words">

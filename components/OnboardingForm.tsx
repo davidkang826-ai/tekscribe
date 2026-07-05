@@ -49,7 +49,7 @@ export default function OnboardingForm({
           className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
         <p className="mt-1 text-xs text-muted">
-          We send customer emails for you — replies come back to this address.
+          We send customer emails for you. Replies come back to this address.
           Defaults to your sign-up email; change it if you&apos;d rather use a
           different one.
         </p>

@@ -47,7 +47,7 @@ export default function SendToCustomer({
   const [email, setEmail] = useState(defaultCustomerEmail);
   const [phone, setPhone] = useState(defaultCustomerPhone);
   const [subject, setSubject] = useState(
-    `Summary of your service visit — ${summary.jobTitle}`
+    `Your ${summary.jobTitle} summary`
   );
   const [copied, setCopied] = useState(false);
   const [sending, setSending] = useState(false);
@@ -196,7 +196,7 @@ export default function SendToCustomer({
                   <span className="text-muted">
                     Replies go to{" "}
                     <span className="font-medium text-foreground">
-                      {replyTo || "—"}
+                      {replyTo || "your email"}
                     </span>
                   </span>
                   <button
