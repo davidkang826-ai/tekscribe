@@ -92,3 +92,39 @@ button:disabled {
 }
 .tt-pop:hover { transform: scale(1.12); }
 .tt-pop:active { transform: scale(0.96); }
+
+/* Uploaded forms, rebuilt as clean fillable sheets (work orders, invoices…). */
+.tt-form {
+  color: #0f172a;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.tt-form * { max-width: 100%; box-sizing: border-box; }
+.tt-form img { height: auto; }
+.tt-form table { border-collapse: collapse; }
+.tt-form td,
+.tt-form th {
+  border: 1px solid #cbd5e1;
+  padding: 4px 6px;
+  vertical-align: top;
+}
+.tt-form h1,
+.tt-form h2,
+.tt-form h3 {
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+/* The blanks the technician fills in */
+.tt-form .tt-fill {
+  display: inline-block;
+  min-width: 7ch;
+  border-bottom: 1px solid #94a3b8;
+  padding: 0 3px;
+  line-height: 1.4;
+}
+.tt-form .tt-fill:empty::after { content: "\00a0"; }
+/* A blank we couldn't fill from the note, so the tech knows to complete it */
+.tt-form .tt-fill-empty {
+  background: #fef3c7;
+  border-bottom-color: #f59e0b;
+}

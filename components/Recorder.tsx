@@ -7,6 +7,11 @@ import { saveNote } from "@/lib/supabase/notes";
 import { upsertCustomer } from "@/lib/supabase/customers";
 import { createClient } from "@/lib/supabase/client";
 import type { JobSummary, Template, Customer, Attachment } from "@/lib/types";
+import {
+  isFormTemplate,
+  stripFormMarker,
+  extractFields,
+} from "@/lib/template-form";
 
 type Phase =
   | "idle"
@@ -139,7 +144,8 @@ export default function Recorder({
   // Template filling
   const [templateId, setTemplateId] = useState("");
   const [filling, setFilling] = useState(false);
-  const [filled, setFilled] = useState<string | null>(null);
+  const [filled, setFilled] = useState<string | null>(null); // legacy text templates
+  const [filledHtml, setFilledHtml] = useState<string | null>(null); // visual forms
   const [filledCopied, setFilledCopied] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -162,6 +168,7 @@ export default function Recorder({
     setError(null);
     setTemplateId("");
     setFilled(null);
+    setFilledHtml(null);
     setCustomerName("");
     setCustomerEmail("");
     setCustomerPhone("");
@@ -412,25 +419,59 @@ export default function Recorder({
     }
   }
 
+  // Write the filled values onto the form's blanks, marking any we couldn't fill.
+  function injectValues(html: string, values: Record<string, string>) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    doc.querySelectorAll<HTMLElement>("[data-field]").forEach((el) => {
+      const id = el.getAttribute("data-field") || "";
+      const v = (values[id] || "").trim();
+      if (v) {
+        el.textContent = v;
+        el.classList.remove("tt-fill-empty");
+      } else {
+        el.classList.add("tt-fill-empty");
+      }
+    });
+    return doc.body.innerHTML;
+  }
+
   async function fillTemplate() {
     const template = templates.find((t) => t.id === templateId);
     if (!template) return;
     setFilling(true);
     setFilled(null);
+    setFilledHtml(null);
     setError(null);
     try {
-      const res = await fetch("/api/fill-template", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          transcript,
-          summary,
-          templateContent: template.content,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Template fill failed.");
-      setFilled(data.filled as string);
+      if (isFormTemplate(template.content)) {
+        // Visual form: ask for a { field -> value } map, then write it onto the form.
+        const html = stripFormMarker(template.content);
+        const fields = extractFields(html);
+        const res = await fetch("/api/fill-template", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcript, summary, fields }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Template fill failed.");
+        setFilledHtml(
+          injectValues(html, (data.values ?? {}) as Record<string, string>)
+        );
+      } else {
+        // Legacy plain-text template.
+        const res = await fetch("/api/fill-template", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            transcript,
+            summary,
+            templateContent: template.content,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Template fill failed.");
+        setFilled(data.filled as string);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Template fill failed.");
     } finally {
@@ -438,10 +479,38 @@ export default function Recorder({
     }
   }
 
+  // Open the filled form in a clean window and trigger Print (Save as PDF).
+  function printFilledForm() {
+    if (!filledHtml) return;
+    const title = templates.find((t) => t.id === templateId)?.name || "Form";
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(
+      `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>` +
+        `<style>` +
+        `body{font-family:system-ui,-apple-system,sans-serif;color:#0f172a;margin:32px;}` +
+        `.tt-form{font-size:14px;line-height:1.5;}` +
+        `.tt-form *{max-width:100%;box-sizing:border-box;}` +
+        `.tt-form table{border-collapse:collapse;}` +
+        `.tt-form td,.tt-form th{border:1px solid #cbd5e1;padding:4px 6px;vertical-align:top;}` +
+        `.tt-form h1,.tt-form h2,.tt-form h3{font-weight:700;margin:0 0 6px;}` +
+        `.tt-form .tt-fill{display:inline-block;min-width:7ch;border-bottom:1px solid #94a3b8;padding:0 3px;}` +
+        `</style></head><body><div class="tt-form">${filledHtml}</div>` +
+        `<script>window.onload=function(){window.print();}<\/script>` +
+        `</body></html>`
+    );
+    win.document.close();
+  }
+
   async function copyFilled() {
-    if (!filled) return;
+    let text = filled ?? "";
+    if (filledHtml) {
+      const doc = new DOMParser().parseFromString(filledHtml, "text/html");
+      text = (doc.body.textContent ?? "").replace(/\n{3,}/g, "\n\n").trim();
+    }
+    if (!text) return;
     try {
-      await navigator.clipboard.writeText(filled);
+      await navigator.clipboard.writeText(text);
       setFilledCopied(true);
       setTimeout(() => setFilledCopied(false), 2000);
     } catch {
@@ -909,6 +978,42 @@ export default function Recorder({
                     </button>
                   </div>
 
+                  {/* Visual form, filled onto the tech's own document */}
+                  {filledHtml && (
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-muted">
+                          Your filled form
+                        </span>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={copyFilled}
+                            className="text-xs font-medium text-brand hover:underline"
+                          >
+                            {filledCopied ? "✓ Copied" : "Copy text"}
+                          </button>
+                          <button
+                            onClick={printFilledForm}
+                            className="text-xs font-medium text-brand hover:underline"
+                          >
+                            🖨 Print / Save PDF
+                          </button>
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-border bg-white p-5 overflow-x-auto">
+                        <div
+                          className="tt-form"
+                          dangerouslySetInnerHTML={{ __html: filledHtml }}
+                        />
+                      </div>
+                      <p className="mt-1.5 text-xs text-muted">
+                        Anything highlighted in amber still needs you to fill it
+                        in.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Legacy plain-text template */}
                   {filled && (
                     <div className="mt-4">
                       <div className="flex items-center justify-between mb-1.5">

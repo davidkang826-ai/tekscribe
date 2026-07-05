@@ -1,20 +1,11 @@
 import { getOpenAI, SUMMARY_MODEL, stripCodeFence } from "@/lib/openai";
+import { FORM_SYSTEM_PROMPT, sanitizeFormHtml } from "@/lib/template-form";
 import mammoth from "mammoth";
 import * as XLSX from "xlsx";
 import type OpenAI from "openai";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-const TEMPLATE_INSTRUCTIONS = `You convert a document (a form used by a field-service technician, e.g. a work order, invoice, or inspection report) into a reusable fill-in TEMPLATE as plain text.
-
-Rules:
-- Transcribe the document's structure: its title, section headings, and every field label.
-- For each blank a technician would fill in, add a placeholder in square brackets describing it, e.g. "Customer name: [name]", "Address: [address]", "Work performed: [work]", "Parts used: [parts]".
-- Preserve the order and grouping of the original.
-- Do not invent fields that aren't in the document, and do not fill in any values.
-- Do not use em dashes (—). Use commas or separate sentences.
-- Output ONLY the template text. No explanation.`;
 
 export async function POST(request: Request) {
   try {
@@ -40,11 +31,14 @@ export async function POST(request: Request) {
         model: SUMMARY_MODEL,
         temperature: 0.2,
         messages: [
-          { role: "system", content: TEMPLATE_INSTRUCTIONS },
+          { role: "system", content: FORM_SYSTEM_PROMPT },
           {
             role: "user",
             content: [
-              { type: "text", text: "Convert this form into a fill-in template." },
+              {
+                type: "text",
+                text: "Rebuild this form as a clean, fillable HTML copy.",
+              },
               {
                 type: "file",
                 file: { filename: file.name, file_data: dataUrl },
@@ -53,9 +47,16 @@ export async function POST(request: Request) {
           },
         ],
       });
-      return Response.json({
-        content: stripCodeFence(completion.choices[0]?.message?.content ?? ""),
-      });
+      const html = sanitizeFormHtml(
+        stripCodeFence(completion.choices[0]?.message?.content ?? "")
+      );
+      if (!html) {
+        return Response.json(
+          { error: "Couldn't read a form from that PDF." },
+          { status: 422 }
+        );
+      }
+      return Response.json({ html });
     }
 
     // Extract plain text from Office / text formats, then structure with AI.
@@ -81,10 +82,7 @@ export async function POST(request: Request) {
         { status: 415 }
       );
     } else {
-      return Response.json(
-        { error: "Unsupported file type." },
-        { status: 415 }
-      );
+      return Response.json({ error: "Unsupported file type." }, { status: 415 });
     }
 
     if (!extracted.trim()) {
@@ -98,17 +96,24 @@ export async function POST(request: Request) {
       model: SUMMARY_MODEL,
       temperature: 0.2,
       messages: [
-        { role: "system", content: TEMPLATE_INSTRUCTIONS },
+        { role: "system", content: FORM_SYSTEM_PROMPT },
         {
           role: "user",
-          content: `Document content:\n"""${extracted.slice(0, 14000)}"""\n\nReturn the fill-in template.`,
+          content: `Rebuild this form as a clean, fillable HTML copy. Document content:\n"""${extracted.slice(0, 14000)}"""`,
         },
       ],
     });
 
-    return Response.json({
-      content: stripCodeFence(completion.choices[0]?.message?.content ?? ""),
-    });
+    const html = sanitizeFormHtml(
+      stripCodeFence(completion.choices[0]?.message?.content ?? "")
+    );
+    if (!html) {
+      return Response.json(
+        { error: "Couldn't build a form from that file." },
+        { status: 422 }
+      );
+    }
+    return Response.json({ html });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Couldn't read that file.";
