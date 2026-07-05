@@ -79,12 +79,10 @@ export default async function Home() {
       <main className="flex-1 w-full max-w-3xl mx-auto px-5 py-10 sm:py-14">
         <div className="text-center mb-10">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            Talk through your visit
+            Your visit, in your words
           </h1>
           <p className="mt-2 text-muted max-w-lg mx-auto">
-            Record as you work or when you wrap up — pause and pick it back up
-            anytime. Don&apos;t worry about the pauses, awkward silences, or
-            corrections. We&apos;ll take care of that for you.
+            Just talk — mess and all. We write it up clean.
           </p>
         </div>
 
