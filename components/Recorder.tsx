@@ -759,33 +759,22 @@ export default function Recorder({
       {phase === "confirmDelete" && (
         <div className="mt-4 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm text-center">
           <p className="text-foreground font-medium">Delete this note?</p>
-          <p className="text-sm text-muted mt-1 mb-4">
-            Pressed it by accident? Just go back.
-          </p>
-          <div className="flex flex-wrap justify-center gap-3">
-            <button
-              onClick={() => setPhase(returnPhase)}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 transition"
-            >
-              ← Go back
-            </button>
-            <button
-              onClick={() => {
-                resetAll();
-                startRecording();
-              }}
-              className="inline-flex items-center gap-2 rounded-lg bg-surface px-5 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 transition"
-            >
-              🎙 Record again
-            </button>
+          <p className="text-sm text-muted mt-1 mb-4">This can&apos;t be undone.</p>
+          <div className="flex justify-center gap-3">
             <button
               onClick={() => {
                 resetAll();
                 setPhase("idle");
               }}
-              className="inline-flex items-center gap-2 rounded-lg bg-surface px-5 py-2.5 text-danger font-medium text-sm ring-1 ring-border hover:bg-red-50 transition"
+              className="tt-pop inline-flex items-center justify-center rounded-lg bg-danger px-8 py-2.5 text-white font-medium text-sm shadow-sm hover:opacity-90 transition"
             >
-              Exit
+              Yes
+            </button>
+            <button
+              onClick={() => setPhase(returnPhase)}
+              className="tt-pop inline-flex items-center justify-center rounded-lg bg-surface px-8 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 transition"
+            >
+              No
             </button>
           </div>
         </div>
