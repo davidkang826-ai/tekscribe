@@ -17,3 +17,9 @@ export type Customer = {
   email: string | null;
   phone: string | null;
 };
+
+export type Attachment = {
+  path: string; // storage path in the visit-media bucket
+  name: string;
+  type: string; // mime type
+};

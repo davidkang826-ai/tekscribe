@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import type { JobSummary } from "@/lib/types";
+import type { JobSummary, Attachment } from "@/lib/types";
 
 export type SaveResult = { error?: string; id?: string };
 
@@ -10,6 +10,7 @@ export async function saveNote(input: {
   summary: JobSummary | null;
   customerEmail?: string;
   customerName?: string;
+  attachments?: Attachment[];
 }): Promise<SaveResult> {
   if (!input.transcript?.trim()) return { error: "Nothing to save yet." };
 
@@ -28,6 +29,7 @@ export async function saveNote(input: {
       transcript: input.transcript.trim(),
       summary: input.summary,
       customer_email: input.customerEmail || null,
+      attachments: input.attachments?.length ? input.attachments : null,
     })
     .select("id")
     .single();

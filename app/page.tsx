@@ -12,6 +12,7 @@ export default async function Home() {
   let templates: Template[] = [];
   let customers: Customer[] = [];
   let replyTo = "";
+  let userId = "";
 
   // Once Supabase is configured, the app requires a verified account with a
   // phone number. Until then it stays open so the core loop is demoable.
@@ -41,6 +42,7 @@ export default async function Home() {
       .select("name, email, phone")
       .order("name", { ascending: true });
     customers = custs ?? [];
+    userId = user.id;
 
     authed = true;
   }
@@ -91,6 +93,7 @@ export default async function Home() {
           templates={templates}
           customers={customers}
           replyTo={replyTo}
+          userId={userId}
         />
       </main>
 

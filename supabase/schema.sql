@@ -62,11 +62,13 @@ create table if not exists public.voice_notes (
   transcript text not null,
   summary jsonb,
   customer_email text,
+  attachments jsonb, -- [{ path, name, type }] photos/files stored in the visit-media bucket
   created_at timestamptz not null default now()
 );
 
--- For existing databases created before customer_name existed:
+-- For existing databases:
 alter table public.voice_notes add column if not exists customer_name text;
+alter table public.voice_notes add column if not exists attachments jsonb;
 
 alter table public.voice_notes enable row level security;
 
@@ -156,3 +158,23 @@ create policy "own customers - delete" on public.customers
 -- One entry per customer name (case-insensitive) per technician.
 create unique index if not exists customers_user_name_idx
   on public.customers (user_id, lower(name));
+
+-- ---------------------------------------------------------------------------
+-- Storage: a private bucket for visit photos & files. Each technician can only
+-- touch files under their own user-id folder (path: <user_id>/<visit>/<file>).
+-- ---------------------------------------------------------------------------
+insert into storage.buckets (id, name, public)
+values ('visit-media', 'visit-media', false)
+on conflict (id) do nothing;
+
+drop policy if exists "visit media - own files" on storage.objects;
+create policy "visit media - own files" on storage.objects
+  for all to authenticated
+  using (
+    bucket_id = 'visit-media'
+    and (storage.foldername(name))[1] = (select auth.uid()::text)
+  )
+  with check (
+    bucket_id = 'visit-media'
+    and (storage.foldername(name))[1] = (select auth.uid()::text)
+  );

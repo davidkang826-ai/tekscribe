@@ -5,7 +5,7 @@ import SignOutButton from "@/components/SignOutButton";
 import SendToCustomer from "@/components/SendToCustomer";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import type { JobSummary } from "@/lib/types";
+import type { JobSummary, Attachment } from "@/lib/types";
 
 export default async function NoteDetailPage(props: {
   params: Promise<{ id: string }>;
@@ -22,7 +22,7 @@ export default async function NoteDetailPage(props: {
   const { data: note } = await supabase
     .from("voice_notes")
     .select(
-      "id, job_title, customer_name, transcript, summary, customer_email, created_at"
+      "id, job_title, customer_name, transcript, summary, customer_email, attachments, created_at"
     )
     .eq("id", id)
     .single();
@@ -36,6 +36,17 @@ export default async function NoteDetailPage(props: {
   const replyTo = profile?.reply_to_email || user.email || "";
 
   const summary = note.summary as JobSummary | null;
+
+  // Sign URLs for any attached photos/files so they can be shown/downloaded.
+  const rawAttachments = (note.attachments as Attachment[] | null) ?? [];
+  const attachments = await Promise.all(
+    rawAttachments.map(async (a) => {
+      const { data } = await supabase.storage
+        .from("visit-media")
+        .createSignedUrl(a.path, 60 * 60);
+      return { ...a, url: data?.signedUrl ?? "" };
+    })
+  );
 
   return (
     <div className="min-h-full flex flex-col">
@@ -78,6 +89,47 @@ export default async function NoteDetailPage(props: {
         </div>
         {note.customer_name && (
           <p className="mt-1 text-sm text-muted">👤 {note.customer_name}</p>
+        )}
+
+        {attachments.length > 0 && (
+          <div className="mt-5">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted mb-2">
+              Photos & files
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {attachments.map((a) =>
+                a.type.startsWith("image/") ? (
+                  <a
+                    key={a.path}
+                    href={a.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="tt-pop block"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={a.url}
+                      alt={a.name}
+                      className="h-24 w-24 rounded-lg object-cover ring-1 ring-border"
+                    />
+                  </a>
+                ) : (
+                  <a
+                    key={a.path}
+                    href={a.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="tt-pop flex h-24 w-24 flex-col items-center justify-center gap-1 rounded-lg bg-surface text-center ring-1 ring-border p-2"
+                  >
+                    <span className="text-2xl">📄</span>
+                    <span className="text-[10px] text-muted truncate max-w-full">
+                      {a.name}
+                    </span>
+                  </a>
+                )
+              )}
+            </div>
+          </div>
         )}
 
         {summary && (

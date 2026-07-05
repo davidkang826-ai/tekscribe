@@ -5,7 +5,8 @@ import { LogoMark } from "./Logo";
 import SendToCustomer from "./SendToCustomer";
 import { saveNote } from "@/lib/supabase/notes";
 import { upsertCustomer } from "@/lib/supabase/customers";
-import type { JobSummary, Template, Customer } from "@/lib/types";
+import { createClient } from "@/lib/supabase/client";
+import type { JobSummary, Template, Customer, Attachment } from "@/lib/types";
 
 type Phase =
   | "idle"
@@ -25,6 +26,42 @@ function formatTime(s: number) {
   const m = Math.floor(s / 60);
   const sec = s % 60;
   return `${m}:${sec.toString().padStart(2, "0")}`;
+}
+
+/** Downscale a photo to a reasonable JPEG before uploading to storage. */
+async function scaleImageToBlob(
+  file: File,
+  maxDim = 1600,
+  quality = 0.82
+): Promise<Blob> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+  const img = new Image();
+  await new Promise((resolve, reject) => {
+    img.onload = resolve;
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+  let { width, height } = img;
+  const longest = Math.max(width, height);
+  if (longest > maxDim) {
+    const s = maxDim / longest;
+    width = Math.round(width * s);
+    height = Math.round(height * s);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return file;
+  ctx.drawImage(img, 0, 0, width, height);
+  return new Promise<Blob>((resolve) =>
+    canvas.toBlob((b) => resolve(b || file), "image/jpeg", quality)
+  );
 }
 
 /** Types text out character-by-character with a blinking cursor. */
@@ -69,11 +106,13 @@ export default function Recorder({
   templates = [],
   customers = [],
   replyTo = "",
+  userId = "",
 }: {
   canSave?: boolean;
   templates?: Template[];
   customers?: Customer[];
   replyTo?: string;
+  userId?: string;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [elapsed, setElapsed] = useState(0);
@@ -91,6 +130,11 @@ export default function Recorder({
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [attachments, setAttachments] = useState<
+    (Attachment & { preview?: string })[]
+  >([]);
+  const [uploading, setUploading] = useState(false);
+  const visitIdRef = useRef<string>("");
 
   // Template filling
   const [templateId, setTemplateId] = useState("");
@@ -121,6 +165,7 @@ export default function Recorder({
     setCustomerName("");
     setCustomerEmail("");
     setCustomerPhone("");
+    setAttachments([]);
     setReviewStep("confirm");
     setArchiveState("idle");
     lastBlobRef.current = null;
@@ -166,6 +211,10 @@ export default function Recorder({
 
   const startRecording = useCallback(async () => {
     resetAll();
+    visitIdRef.current =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}`;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -292,6 +341,11 @@ export default function Recorder({
       summary,
       customerName,
       customerEmail,
+      attachments: attachments.map(({ path, name, type }) => ({
+        path,
+        name,
+        type,
+      })),
     });
     if (result.error) {
       setError(result.error);
@@ -308,6 +362,53 @@ export default function Recorder({
         email: customerEmail,
         phone: customerPhone,
       });
+    }
+  }
+
+  async function addAttachment(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !userId) return;
+    // Taking a photo mid-recording shouldn't keep recording the camera moment.
+    if (mediaRecorderRef.current?.state === "recording") pauseRecording();
+    setUploading(true);
+    setError(null);
+    try {
+      const isImage = file.type.startsWith("image/");
+      const body: Blob = isImage ? await scaleImageToBlob(file) : file;
+      const contentType = isImage
+        ? "image/jpeg"
+        : file.type || "application/octet-stream";
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-60);
+      const path = `${userId}/${visitIdRef.current || "v"}/${Date.now()}-${safe}`;
+      const supabase = createClient();
+      const { error: upErr } = await supabase.storage
+        .from("visit-media")
+        .upload(path, body, { contentType, upsert: false });
+      if (upErr) throw new Error(upErr.message);
+      setAttachments((prev) => [
+        ...prev,
+        {
+          path,
+          name: file.name,
+          type: contentType,
+          preview: isImage ? URL.createObjectURL(body) : undefined,
+        },
+      ]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function removeAttachment(att: Attachment) {
+    setAttachments((prev) => prev.filter((a) => a.path !== att.path));
+    try {
+      const supabase = createClient();
+      await supabase.storage.from("visit-media").remove([att.path]);
+    } catch {
+      // best-effort cleanup
     }
   }
 
@@ -428,6 +529,39 @@ export default function Recorder({
               ✓ Wrap up
             </button>
           )}
+
+          {canSave && (isRecording || isPaused) && (
+            <div className="mt-4 flex items-center gap-2">
+              <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
+                📷 Photo
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={addAttachment}
+                  className="hidden"
+                />
+              </label>
+              <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
+                📎 File
+                <input
+                  type="file"
+                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                  onChange={addAttachment}
+                  className="hidden"
+                />
+              </label>
+              {uploading ? (
+                <span className="text-xs text-brand">Uploading…</span>
+              ) : (
+                attachments.length > 0 && (
+                  <span className="text-xs text-muted">
+                    {attachments.length} attached
+                  </span>
+                )
+              )}
+            </div>
+          )}
         </>
       )}
 
@@ -531,6 +665,63 @@ export default function Recorder({
                 >
                   📇 Add to contacts
                 </button>
+              )}
+            </div>
+          )}
+
+          {canSave && phase === "transcript" && (
+            <div className="mt-3">
+              <div className="flex items-center gap-2 mb-2">
+                <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
+                  📷 Add photo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={addAttachment}
+                    className="hidden"
+                  />
+                </label>
+                <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
+                  📎 Add file
+                  <input
+                    type="file"
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                    onChange={addAttachment}
+                    className="hidden"
+                  />
+                </label>
+                {uploading && (
+                  <span className="text-xs text-brand">Uploading…</span>
+                )}
+              </div>
+              {attachments.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {attachments.map((a) => (
+                    <div key={a.path} className="relative">
+                      {a.preview ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={a.preview}
+                          alt={a.name}
+                          className="h-16 w-16 rounded-lg object-cover ring-1 ring-border"
+                        />
+                      ) : (
+                        <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-slate-50 text-2xl ring-1 ring-border">
+                          📄
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(a)}
+                        aria-label="Remove attachment"
+                        className="tt-pop absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs text-muted ring-1 ring-border shadow-sm hover:text-danger"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           )}
