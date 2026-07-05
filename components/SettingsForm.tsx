@@ -1,25 +1,38 @@
 "use client";
 
 import { useActionState } from "react";
-import { saveProfile, type AuthState } from "@/lib/supabase/actions";
+import { updateSettings, type AuthState } from "@/lib/supabase/actions";
 
-export default function OnboardingForm({
-  signupEmail,
+export default function SettingsForm({
+  displayName,
+  replyTo,
+  businessName,
 }: {
-  signupEmail: string;
+  displayName: string;
+  replyTo: string;
+  businessName: string;
 }) {
   const [state, formAction, pending] = useActionState<AuthState, FormData>(
-    saveProfile,
+    updateSettings,
     {}
   );
 
   return (
-    <form action={formAction} className="space-y-3 text-left">
+    <form
+      action={formAction}
+      className="rounded-2xl border border-border bg-surface p-5 shadow-sm space-y-4"
+    >
       {state.error && (
         <div className="rounded-lg bg-red-50 text-danger text-sm px-3 py-2.5 ring-1 ring-red-100">
           {state.error}
         </div>
       )}
+      {state.ok && (
+        <div className="rounded-lg bg-green-50 text-success text-sm px-3 py-2.5 ring-1 ring-green-100">
+          ✓ Saved
+        </div>
+      )}
+
       <div>
         <label className="block text-xs font-medium text-muted mb-1">
           Your name
@@ -27,26 +40,28 @@ export default function OnboardingForm({
         <input
           name="display_name"
           type="text"
+          defaultValue={displayName}
           placeholder="What customers call you, e.g. Johnny"
           className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
         <p className="mt-1 text-xs text-muted">
-          We sign your customer messages with this. You can change it anytime.
+          Customer messages open with this, like &ldquo;Hi, it&apos;s Johnny.&rdquo;
         </p>
       </div>
+
       <div>
         <label className="block text-xs font-medium text-muted mb-1">
-          Mobile phone
+          Business name
         </label>
         <input
-          name="phone"
-          type="tel"
-          inputMode="tel"
-          placeholder="(617) 555-0123"
-          required
+          name="business_name"
+          type="text"
+          defaultValue={businessName}
+          placeholder="Blue Ridge Plumbing"
           className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
       </div>
+
       <div>
         <label className="block text-xs font-medium text-muted mb-1">
           Customer replies go to
@@ -57,23 +72,21 @@ export default function OnboardingForm({
           inputMode="email"
           autoCapitalize="off"
           autoCorrect="off"
-          defaultValue={signupEmail}
+          defaultValue={replyTo}
           placeholder="you@example.com"
-          required
           className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
         <p className="mt-1 text-xs text-muted">
-          We send customer emails for you. Replies come back to this address.
-          Defaults to your sign-up email; change it if you&apos;d rather use a
-          different one.
+          When a customer replies to an email you sent, it comes back here.
         </p>
       </div>
+
       <button
         type="submit"
         disabled={pending}
         className="w-full rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
       >
-        {pending ? "Saving…" : "Finish setup"}
+        {pending ? "Saving…" : "Save changes"}
       </button>
     </form>
   );

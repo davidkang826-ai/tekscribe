@@ -128,3 +128,14 @@ button:disabled {
   background: #fef3c7;
   border-bottom-color: #f59e0b;
 }
+
+/* Press-and-hold-to-end: a ring that fills over 2s while the button is held */
+@keyframes tt-hold-fill {
+  from { stroke-dashoffset: 534; }
+  to { stroke-dashoffset: 0; }
+}
+.tt-hold-arc {
+  stroke-dasharray: 534;
+  stroke-dashoffset: 534;
+  animation: tt-hold-fill 2s linear forwards;
+}

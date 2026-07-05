@@ -13,6 +13,11 @@ function buildEmailBody(summary: JobSummary): string {
     for (const item of summary.workDone) lines.push(`• ${item}`);
     lines.push("");
   }
+  if (summary.customerRequests?.length) {
+    lines.push("What you asked us to note:");
+    for (const item of summary.customerRequests) lines.push(`• ${item}`);
+    lines.push("");
+  }
   if (summary.nextSteps.length) {
     lines.push("Next steps:");
     for (const item of summary.nextSteps) lines.push(`• ${item}`);
@@ -25,6 +30,10 @@ function buildEmailBody(summary: JobSummary): string {
 function buildSmsBody(summary: JobSummary): string {
   const lines: string[] = [];
   if (summary.customerMessage) lines.push(summary.customerMessage);
+  if (summary.customerRequests?.length) {
+    lines.push("", "You asked us to note:");
+    for (const item of summary.customerRequests) lines.push(`- ${item}`);
+  }
   if (summary.nextSteps.length) {
     lines.push("", "Next steps:");
     for (const item of summary.nextSteps) lines.push(`- ${item}`);

@@ -6,26 +6,25 @@ import SendToCustomer from "./SendToCustomer";
 import { saveNote } from "@/lib/supabase/notes";
 import { upsertCustomer } from "@/lib/supabase/customers";
 import { createClient } from "@/lib/supabase/client";
-import type { JobSummary, Template, Customer, Attachment } from "@/lib/types";
-import {
-  isFormTemplate,
-  stripFormMarker,
-  extractFields,
-} from "@/lib/template-form";
+import type { JobSummary, Customer, Attachment } from "@/lib/types";
 
 type Phase =
   | "idle"
   | "recording"
-  | "paused" // recording paused mid-visit; tap to resume, or wrap up
+  | "paused" // recording paused mid-visit; tap to resume, or hold to end
   | "transcribing"
   | "transcribeError" // transcription failed; audio kept for retry
-  | "transcript" // transcript shown: Summarize / Delete
+  | "transcript" // Step 1: transcript shown
   | "summarizing" // calling the AI
-  | "summarized" // AI summary → review steps (confirm → archive → send)
-  | "confirmDelete"; // Exit / Record again
+  | "summarized" // Steps 2-4: review → save → send
+  | "confirmDelete";
 
-// Steps within the "summarized" phase.
+// Steps within the "summarized" phase: 2 = review, 3 = save, 4 = send.
 type ReviewStep = "confirm" | "archive" | "send";
+
+type Attach = Attachment & { preview?: string };
+
+const STEP_LABELS = ["Your memo", "Review the note", "Save it", "Send to customer"];
 
 function formatTime(s: number) {
   const m = Math.floor(s / 60);
@@ -106,54 +105,73 @@ function Typewriter({
   );
 }
 
+function StepIndicator({ current }: { current: number }) {
+  return (
+    <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
+      <span className="text-xs font-semibold uppercase tracking-wide text-brand">
+        Step {current} of {STEP_LABELS.length}
+      </span>
+      <span className="text-xs text-muted">· {STEP_LABELS[current - 1]}</span>
+      <div className="ml-1 flex gap-1">
+        {STEP_LABELS.map((_, i) => (
+          <span
+            key={i}
+            className={`h-1.5 w-1.5 rounded-full ${
+              i < current ? "bg-brand" : "bg-border"
+            }`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Recorder({
   canSave = false,
-  templates = [],
   customers = [],
   replyTo = "",
   userId = "",
+  techName = "",
 }: {
   canSave?: boolean;
-  templates?: Template[];
   customers?: Customer[];
   replyTo?: string;
   userId?: string;
+  techName?: string;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [elapsed, setElapsed] = useState(0);
   const [transcript, setTranscript] = useState("");
   const [summary, setSummary] = useState<JobSummary | null>(null);
-  const [noteId, setNoteId] = useState<string | null>(null);
+  const [questions, setQuestions] = useState<string[]>([]);
+  const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [, setNoteId] = useState<string | null>(null);
   const [writingDone, setWritingDone] = useState(false);
   const [reviewStep, setReviewStep] = useState<ReviewStep>("confirm");
-  const [archiveState, setArchiveState] = useState<
-    "idle" | "saving" | "saved"
-  >("idle");
+  const [archiveState, setArchiveState] = useState<"idle" | "saving" | "saved">(
+    "idle"
+  );
   const [error, setError] = useState<string | null>(null);
-  // Where to return to if the user cancels a delete.
   const [returnPhase, setReturnPhase] = useState<Phase>("transcript");
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [attachments, setAttachments] = useState<
-    (Attachment & { preview?: string })[]
-  >([]);
+  const [nameMatches, setNameMatches] = useState<Customer[]>([]);
+  const [attachments, setAttachments] = useState<Attach[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [viewing, setViewing] = useState<Attach | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Attach | null>(null);
+  const [holding, setHolding] = useState(false);
+  const [endConfirm, setEndConfirm] = useState(false);
   const visitIdRef = useRef<string>("");
-
-  // Template filling
-  const [templateId, setTemplateId] = useState("");
-  const [filling, setFilling] = useState(false);
-  const [filled, setFilled] = useState<string | null>(null); // legacy text templates
-  const [filledHtml, setFilledHtml] = useState<string | null>(null); // visual forms
-  const [filledCopied, setFilledCopied] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Keep the last recording so a failed transcription can be retried, not lost.
   const lastBlobRef = useRef<Blob | null>(null);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdFiredRef = useRef(false);
 
   const stopTimer = () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -163,53 +181,49 @@ export default function Recorder({
   const resetAll = () => {
     setTranscript("");
     setSummary(null);
+    setQuestions([]);
+    setAnswers({});
     setNoteId(null);
     setWritingDone(false);
     setError(null);
-    setTemplateId("");
-    setFilled(null);
-    setFilledHtml(null);
     setCustomerName("");
     setCustomerEmail("");
     setCustomerPhone("");
+    setNameMatches([]);
     setAttachments([]);
+    setViewing(null);
+    setPendingDelete(null);
+    setHolding(false);
+    setEndConfirm(false);
     setReviewStep("confirm");
     setArchiveState("idle");
     lastBlobRef.current = null;
   };
 
-  // Recall a saved customer's details when their name is picked/typed.
+  // Recall a saved customer. If several share the name, let them pick by email.
   function onCustomerName(value: string) {
     setCustomerName(value);
-    const match = customers.find(
+    const matches = customers.filter(
       (c) => c.name.trim().toLowerCase() === value.trim().toLowerCase()
     );
-    if (match) {
-      setCustomerEmail(match.email ?? "");
-      setCustomerPhone(match.phone ?? "");
+    if (matches.length === 1) {
+      setCustomerEmail(matches[0].email ?? "");
+      setCustomerPhone(matches[0].phone ?? "");
+      setNameMatches([]);
+    } else if (matches.length > 1) {
+      setNameMatches(matches);
+    } else {
+      setNameMatches([]);
     }
   }
 
-  // One-tap "add to contacts" via a downloadable vCard.
-  function addToContacts() {
-    const lines = [
-      "BEGIN:VCARD",
-      "VERSION:3.0",
-      `FN:${customerName}`,
-      customerPhone ? `TEL;TYPE=CELL:${customerPhone}` : "",
-      customerEmail ? `EMAIL:${customerEmail}` : "",
-      "END:VCARD",
-    ].filter(Boolean);
-    const blob = new Blob([lines.join("\n")], { type: "text/vcard" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${customerName || "contact"}.vcf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  function pickMatch(c: Customer) {
+    setCustomerEmail(c.email ?? "");
+    setCustomerPhone(c.phone ?? "");
+    setNameMatches([]);
   }
+
+  const uniqueNames = Array.from(new Set(customers.map((c) => c.name)));
 
   const askDelete = (from: Phase) => {
     setReturnPhase(from);
@@ -273,7 +287,7 @@ export default function Recorder({
     }
   }, []);
 
-  // "Wrap up", end the visit recording (works whether recording or paused).
+  // End the visit recording (works whether recording or paused).
   const stopRecording = useCallback(() => {
     const rec = mediaRecorderRef.current;
     if (rec && (rec.state === "recording" || rec.state === "paused")) {
@@ -281,6 +295,50 @@ export default function Recorder({
       rec.stop();
     }
   }, []);
+
+  // --- Tap = pause/resume, press-and-hold 2s = end -------------------------
+  const clearHold = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+  };
+
+  function onRecordPointerDown() {
+    if (endConfirm) return;
+    if (phase !== "recording" && phase !== "paused") return;
+    holdFiredRef.current = false;
+    setHolding(true);
+    clearHold();
+    holdTimerRef.current = setTimeout(() => {
+      holdFiredRef.current = true;
+      setHolding(false);
+      if (mediaRecorderRef.current?.state === "recording") pauseRecording();
+      setEndConfirm(true);
+    }, 2000);
+  }
+
+  function onRecordPointerEnd() {
+    setHolding(false);
+    clearHold();
+  }
+
+  function onRecordClick() {
+    // The click fires right after pointerup; if a hold just ended, swallow it.
+    if (holdFiredRef.current) {
+      holdFiredRef.current = false;
+      return;
+    }
+    if (endConfirm) return;
+    if (phase === "idle") startRecording();
+    else if (phase === "recording") pauseRecording();
+    else if (phase === "paused") resumeRecording();
+  }
+
+  function openEndConfirm() {
+    if (mediaRecorderRef.current?.state === "recording") pauseRecording();
+    setEndConfirm(true);
+  }
 
   async function transcribe(blob: Blob) {
     try {
@@ -294,7 +352,6 @@ export default function Recorder({
       setPhase("transcript");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Transcription failed.");
-      // Keep the audio (lastBlobRef) so the tech can retry instead of losing it.
       setPhase("transcribeError");
     }
   }
@@ -306,18 +363,25 @@ export default function Recorder({
     transcribe(lastBlobRef.current);
   }
 
-  async function handleSummarize() {
+  // Optional extra context (the tech's answers to clarifying questions) is
+  // appended to the note the AI reads, without altering the saved transcript.
+  async function handleSummarize(extraContext?: string) {
     setError(null);
     setPhase("summarizing");
     try {
+      const noteForAI = extraContext
+        ? `${transcript}\n\nThe technician clarified:\n${extraContext}`
+        : transcript;
       const res = await fetch("/api/summarize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript }),
+        body: JSON.stringify({ transcript: noteForAI, techName }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Summarization failed.");
       setSummary(data.summary as JobSummary);
+      setQuestions(Array.isArray(data.questions) ? data.questions : []);
+      setAnswers({});
       setWritingDone(false);
       setReviewStep("confirm");
       setPhase("summarized");
@@ -327,20 +391,24 @@ export default function Recorder({
     }
   }
 
-  // "Tweak it", go back to edit the transcript and re-summarize.
+  function submitAnswers() {
+    const qa = questions
+      .map((q, i) => ({ q, a: (answers[i] || "").trim() }))
+      .filter((x) => x.a);
+    if (!qa.length) return;
+    const extra = qa.map((x) => `Q: ${x.q}\nA: ${x.a}`).join("\n");
+    handleSummarize(extra);
+  }
+
   function tweakSummary() {
     setSummary(null);
+    setQuestions([]);
     setWritingDone(false);
     setReviewStep("confirm");
     setPhase("transcript");
   }
 
   async function handleArchive() {
-    if (!canSave) {
-      setArchiveState("saved");
-      setReviewStep("send");
-      return;
-    }
     setArchiveState("saving");
     setError(null);
     const result = await saveNote({
@@ -360,9 +428,7 @@ export default function Recorder({
     } else {
       setNoteId(result.id ?? null);
       setArchiveState("saved");
-      setReviewStep("send");
     }
-    // Remember this customer for next time (fire-and-forget).
     if (customerName.trim()) {
       upsertCustomer({
         name: customerName,
@@ -376,7 +442,6 @@ export default function Recorder({
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file || !userId) return;
-    // Taking a photo mid-recording shouldn't keep recording the camera moment.
     if (mediaRecorderRef.current?.state === "recording") pauseRecording();
     setUploading(true);
     setError(null);
@@ -409,7 +474,7 @@ export default function Recorder({
     }
   }
 
-  async function removeAttachment(att: Attachment) {
+  async function removeAttachment(att: Attach) {
     setAttachments((prev) => prev.filter((a) => a.path !== att.path));
     try {
       const supabase = createClient();
@@ -419,100 +484,18 @@ export default function Recorder({
     }
   }
 
-  // Write the filled values onto the form's blanks, marking any we couldn't fill.
-  function injectValues(html: string, values: Record<string, string>) {
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    doc.querySelectorAll<HTMLElement>("[data-field]").forEach((el) => {
-      const id = el.getAttribute("data-field") || "";
-      const v = (values[id] || "").trim();
-      if (v) {
-        el.textContent = v;
-        el.classList.remove("tt-fill-empty");
-      } else {
-        el.classList.add("tt-fill-empty");
-      }
-    });
-    return doc.body.innerHTML;
-  }
-
-  async function fillTemplate() {
-    const template = templates.find((t) => t.id === templateId);
-    if (!template) return;
-    setFilling(true);
-    setFilled(null);
-    setFilledHtml(null);
-    setError(null);
-    try {
-      if (isFormTemplate(template.content)) {
-        // Visual form: ask for a { field -> value } map, then write it onto the form.
-        const html = stripFormMarker(template.content);
-        const fields = extractFields(html);
-        const res = await fetch("/api/fill-template", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ transcript, summary, fields }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Template fill failed.");
-        setFilledHtml(
-          injectValues(html, (data.values ?? {}) as Record<string, string>)
-        );
-      } else {
-        // Legacy plain-text template.
-        const res = await fetch("/api/fill-template", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            transcript,
-            summary,
-            templateContent: template.content,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Template fill failed.");
-        setFilled(data.filled as string);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Template fill failed.");
-    } finally {
-      setFilling(false);
+  // Click an attachment to see it: images open in a lightbox, files in a tab.
+  async function viewAttachment(att: Attach) {
+    if (att.type.startsWith("image/") && att.preview) {
+      setViewing(att);
+      return;
     }
-  }
-
-  // Open the filled form in a clean window and trigger Print (Save as PDF).
-  function printFilledForm() {
-    if (!filledHtml) return;
-    const title = templates.find((t) => t.id === templateId)?.name || "Form";
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write(
-      `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>` +
-        `<style>` +
-        `body{font-family:system-ui,-apple-system,sans-serif;color:#0f172a;margin:32px;}` +
-        `.tt-form{font-size:14px;line-height:1.5;}` +
-        `.tt-form *{max-width:100%;box-sizing:border-box;}` +
-        `.tt-form table{border-collapse:collapse;}` +
-        `.tt-form td,.tt-form th{border:1px solid #cbd5e1;padding:4px 6px;vertical-align:top;}` +
-        `.tt-form h1,.tt-form h2,.tt-form h3{font-weight:700;margin:0 0 6px;}` +
-        `.tt-form .tt-fill{display:inline-block;min-width:7ch;border-bottom:1px solid #94a3b8;padding:0 3px;}` +
-        `</style></head><body><div class="tt-form">${filledHtml}</div>` +
-        `<script>window.onload=function(){window.print();}<\/script>` +
-        `</body></html>`
-    );
-    win.document.close();
-  }
-
-  async function copyFilled() {
-    let text = filled ?? "";
-    if (filledHtml) {
-      const doc = new DOMParser().parseFromString(filledHtml, "text/html");
-      text = (doc.body.textContent ?? "").replace(/\n{3,}/g, "\n\n").trim();
-    }
-    if (!text) return;
     try {
-      await navigator.clipboard.writeText(text);
-      setFilledCopied(true);
-      setTimeout(() => setFilledCopied(false), 2000);
+      const supabase = createClient();
+      const { data } = await supabase.storage
+        .from("visit-media")
+        .createSignedUrl(att.path, 60 * 60);
+      if (data?.signedUrl) window.open(data.signedUrl, "_blank");
     } catch {
       // ignore
     }
@@ -528,44 +511,71 @@ export default function Recorder({
 
   const statusText: Record<string, string> = {
     idle: "Tap to record your visit",
-    recording: "Recording… tap to pause",
-    paused: "Paused, tap to resume",
+    recording: "Recording. Tap to pause, hold to end.",
+    paused: "Paused. Tap to resume, hold to end.",
     transcribing: "Transcribing…",
   };
 
+  const stepNum =
+    phase === "transcript"
+      ? 1
+      : phase === "summarizing"
+        ? 2
+        : phase === "summarized"
+          ? reviewStep === "confirm"
+            ? 2
+            : reviewStep === "archive"
+              ? 3
+              : 4
+          : 0;
+
   return (
     <div className="flex flex-col items-center w-full max-w-xl mx-auto">
-      {/* Record button, only while idle/recording/transcribing */}
       {showButton && (
         <>
           <button
-            onClick={
-              isRecording
-                ? pauseRecording
-                : isPaused
-                  ? resumeRecording
-                  : startRecording
-            }
+            onClick={onRecordClick}
+            onPointerDown={onRecordPointerDown}
+            onPointerUp={onRecordPointerEnd}
+            onPointerLeave={onRecordPointerEnd}
+            onPointerCancel={onRecordPointerEnd}
             disabled={phase === "transcribing"}
-            className="relative flex items-center justify-center w-44 h-44 rounded-full disabled:opacity-60 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-brand/30"
+            className="relative flex items-center justify-center w-44 h-44 rounded-full disabled:opacity-60 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-brand/30 touch-none select-none"
             aria-label={
               isRecording
-                ? "Pause recording"
+                ? "Recording. Tap to pause, press and hold to end."
                 : isPaused
-                  ? "Resume recording"
+                  ? "Paused. Tap to resume, press and hold to end."
                   : "Start recording"
             }
           >
-            {isRecording && (
+            {isRecording && !holding && (
               <>
                 <span className="absolute inset-0 rounded-full bg-brand/20 tt-ring" />
                 <span className="absolute inset-2 rounded-full bg-brand/20 tt-ring [animation-delay:0.5s]" />
               </>
             )}
+            {holding && (
+              <svg
+                viewBox="0 0 176 176"
+                className="pointer-events-none absolute inset-0 h-full w-full -rotate-90"
+              >
+                <circle
+                  cx="88"
+                  cy="88"
+                  r="85"
+                  fill="none"
+                  stroke="var(--danger)"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  className="tt-hold-arc"
+                />
+              </svg>
+            )}
             <span
               className={`relative flex items-center justify-center w-36 h-36 rounded-full bg-surface shadow-lg ${
                 isPaused ? "ring-2 ring-accent" : "ring-1 ring-border"
-              } ${isRecording ? "tt-pulse" : ""}`}
+              } ${isRecording && !holding ? "tt-pulse" : ""}`}
             >
               <LogoMark size={84} />
             </span>
@@ -582,7 +592,7 @@ export default function Recorder({
                   {formatTime(elapsed)}
                 </span>
                 <div className="text-xs text-muted mt-0.5">
-                  {statusText[phase]}
+                  {holding ? "Keep holding to end…" : statusText[phase]}
                 </div>
               </>
             ) : (
@@ -590,45 +600,80 @@ export default function Recorder({
             )}
           </div>
 
-          {(isRecording || isPaused) && (
-            <button
-              onClick={stopRecording}
-              className="tt-pop mt-4 inline-flex items-center gap-2 rounded-xl bg-brand px-7 py-3 text-white font-semibold text-base shadow-sm hover:bg-brand-600 transition"
-            >
-              ✓ Wrap up
-            </button>
+          {/* End-recording confirm (after a 2s hold, or the fallback link) */}
+          {endConfirm && (
+            <div className="mt-4 w-full max-w-sm rounded-2xl border border-border bg-surface p-5 shadow-sm text-center">
+              <p className="text-foreground font-medium">End the recording?</p>
+              <p className="text-sm text-muted mt-1 mb-4">
+                We&apos;ll write it up. You can keep talking if you&apos;re not
+                done.
+              </p>
+              <div className="flex flex-wrap justify-center gap-3">
+                <button
+                  onClick={() => {
+                    setEndConfirm(false);
+                    stopRecording();
+                  }}
+                  className="tt-pop inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-white font-semibold text-base shadow-sm hover:bg-brand-600 transition"
+                >
+                  ✓ End &amp; write it up
+                </button>
+                <button
+                  onClick={() => {
+                    setEndConfirm(false);
+                    resumeRecording();
+                  }}
+                  className="tt-pop inline-flex items-center gap-2 rounded-xl bg-surface px-6 py-3 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
+                >
+                  ← Keep recording
+                </button>
+              </div>
+            </div>
           )}
 
-          {canSave && (isRecording || isPaused) && (
-            <div className="mt-4 flex items-center gap-2">
-              <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
-                📷 Photo
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={addAttachment}
-                  className="hidden"
-                />
-              </label>
-              <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
-                📎 File
-                <input
-                  type="file"
-                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
-                  onChange={addAttachment}
-                  className="hidden"
-                />
-              </label>
-              {uploading ? (
-                <span className="text-xs text-brand">Uploading…</span>
-              ) : (
-                attachments.length > 0 && (
-                  <span className="text-xs text-muted">
-                    {attachments.length} attached
-                  </span>
-                )
-              )}
+          {/* Attach photos/files + a subtle end fallback, hidden mid-confirm */}
+          {canSave && (isRecording || isPaused) && !endConfirm && (
+            <div className="mt-4 flex flex-col items-center gap-2">
+              <div className="flex items-center gap-2">
+                <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
+                  📷 Photo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={addAttachment}
+                    className="hidden"
+                  />
+                </label>
+                <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
+                  📎 File
+                  <input
+                    type="file"
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                    onChange={addAttachment}
+                    className="hidden"
+                  />
+                </label>
+                {uploading ? (
+                  <span className="text-xs text-brand">Uploading…</span>
+                ) : (
+                  attachments.length > 0 && (
+                    <span className="text-xs text-muted">
+                      {attachments.length} attached
+                    </span>
+                  )
+                )}
+              </div>
+              <p className="max-w-xs text-center text-[11px] text-muted">
+                Snap the model plate, the damage, or a before/after. Files like a
+                receipt or permit work too. They stay with this visit.
+              </p>
+              <button
+                onClick={openEndConfirm}
+                className="mt-1 text-xs font-medium text-muted underline hover:text-foreground"
+              >
+                or tap here to end
+              </button>
             </div>
           )}
         </>
@@ -669,11 +714,18 @@ export default function Recorder({
         </div>
       )}
 
+      {/* Numbered step indicator across the review flow */}
+      {stepNum > 0 && (
+        <div className="mt-4 w-full">
+          <StepIndicator current={stepNum} />
+        </div>
+      )}
+
       {/* Transcript, editable while reviewing, read-only after summarizing */}
       {(phase === "transcript" ||
         phase === "summarizing" ||
         phase === "summarized") && (
-        <div className="mt-2 w-full">
+        <div className="w-full">
           <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-2">
             Transcript of your memo
           </label>
@@ -701,10 +753,31 @@ export default function Recorder({
                 className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
               />
               <datalist id="tt-customers">
-                {customers.map((c) => (
-                  <option key={c.name} value={c.name} />
+                {uniqueNames.map((n) => (
+                  <option key={n} value={n} />
                 ))}
               </datalist>
+
+              {nameMatches.length > 1 && (
+                <div className="rounded-lg bg-slate-50 p-2.5 text-xs">
+                  <p className="text-muted mb-1.5">
+                    A few customers named {customerName}. Which one?
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {nameMatches.map((c, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => pickMatch(c)}
+                        className="tt-pop rounded-md bg-surface px-2.5 py-1 font-medium text-foreground ring-1 ring-border hover:bg-white"
+                      >
+                        {c.email || c.phone || "no contact info"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input
                   type="email"
@@ -725,21 +798,15 @@ export default function Recorder({
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
                 />
               </div>
-              {customerName.trim() && (customerEmail || customerPhone) && (
-                <button
-                  type="button"
-                  onClick={addToContacts}
-                  className="tt-pop text-xs font-medium text-brand hover:underline"
-                >
-                  📇 Add to contacts
-                </button>
-              )}
+              <p className="text-[11px] text-muted">
+                Saved to your customer list, so next time you just pick the name.
+              </p>
             </div>
           )}
 
           {canSave && phase === "transcript" && (
             <div className="mt-3">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-1.5">
                 <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
                   📷 Add photo
                   <input
@@ -763,25 +830,39 @@ export default function Recorder({
                   <span className="text-xs text-brand">Uploading…</span>
                 )}
               </div>
+              <p className="mb-2 text-[11px] text-muted">
+                Photos (model plate, damage, before/after) and files (receipt,
+                permit) attach to this visit. Tap one to view it.
+              </p>
               {attachments.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {attachments.map((a) => (
                     <div key={a.path} className="relative">
-                      {a.preview ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={a.preview}
-                          alt={a.name}
-                          className="h-16 w-16 rounded-lg object-cover ring-1 ring-border"
-                        />
-                      ) : (
-                        <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-slate-50 text-2xl ring-1 ring-border">
-                          📄
-                        </div>
-                      )}
                       <button
                         type="button"
-                        onClick={() => removeAttachment(a)}
+                        onClick={() => viewAttachment(a)}
+                        aria-label={`View ${a.name}`}
+                        className="tt-pop block"
+                      >
+                        {a.preview ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={a.preview}
+                            alt={a.name}
+                            className="h-16 w-16 rounded-lg object-cover ring-1 ring-border"
+                          />
+                        ) : (
+                          <div className="flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-lg bg-slate-50 ring-1 ring-border">
+                            <span className="text-2xl">📄</span>
+                            <span className="max-w-full truncate px-1 text-[9px] text-muted">
+                              {a.name}
+                            </span>
+                          </div>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPendingDelete(a)}
                         aria-label="Remove attachment"
                         className="tt-pop absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs text-muted ring-1 ring-border shadow-sm hover:text-danger"
                       >
@@ -794,12 +875,12 @@ export default function Recorder({
             </div>
           )}
 
-          {/* Phase-specific actions */}
+          {/* Step 1 actions */}
           <div className="mt-4 flex flex-wrap justify-center gap-4">
             {phase === "transcript" && (
               <>
                 <button
-                  onClick={handleSummarize}
+                  onClick={() => handleSummarize()}
                   disabled={!transcript.trim()}
                   className="inline-flex items-center gap-2 rounded-xl bg-brand px-8 py-3.5 text-white font-semibold text-base shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
                 >
@@ -849,9 +930,9 @@ export default function Recorder({
         </div>
       )}
 
-      {/* AI summary, writes in live */}
+      {/* AI summary + guided review (Steps 2-4) */}
       {phase === "summarized" && summary && (
-        <div className="mt-6 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm">
+        <div className="mt-4 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-xs font-semibold uppercase tracking-wide text-accent-600">
               AI Summary
@@ -867,6 +948,26 @@ export default function Recorder({
             items={summary.partsAndMaterials}
             accent
           />
+
+          {/* Customer requests: always shown; "None" when empty */}
+          <div className="mt-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-brand mb-1.5">
+              Customer requests
+            </div>
+            {summary.customerRequests.length ? (
+              <ul className="space-y-1">
+                {summary.customerRequests.map((item, i) => (
+                  <li key={i} className="flex gap-2 text-[15px] text-foreground">
+                    <span className="text-brand">•</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[15px] text-muted">None</p>
+            )}
+          </div>
+
           <SummarySection
             title="Next steps & things to buy"
             items={summary.nextSteps}
@@ -886,165 +987,220 @@ export default function Recorder({
             </div>
           )}
 
-          {/* Guided review: confirm → archive → send */}
           {writingDone && (
             <div className="tt-fade-in">
+              {/* Step 2: review, clarify, confirm */}
               {reviewStep === "confirm" && (
-                <div className="mt-5 border-t border-border pt-5 text-center">
-                  <p className="font-medium text-foreground">Look right?</p>
-                  <div className="mt-3 flex flex-wrap justify-center gap-3">
-                    <button
-                      onClick={() =>
-                        setReviewStep(canSave ? "archive" : "send")
-                      }
-                      className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-white font-semibold text-base shadow-sm hover:bg-brand-600 transition"
-                    >
-                      👍 Looks good
-                    </button>
-                    <button
-                      onClick={tweakSummary}
-                      className="inline-flex items-center gap-2 rounded-xl bg-surface px-6 py-3 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
-                    >
-                      ✏️ Tweak it
-                    </button>
+                <>
+                  {questions.length > 0 && (
+                    <div className="mt-5 border-t border-border pt-5">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-accent-600 mb-1">
+                        A few things to confirm
+                      </div>
+                      <p className="text-xs text-muted mb-3">
+                        Answer what you can so nothing gets missed, then update
+                        the note.
+                      </p>
+                      <div className="space-y-3">
+                        {questions.map((q, i) => (
+                          <div key={i}>
+                            <label className="block text-sm text-foreground mb-1">
+                              {q}
+                            </label>
+                            <input
+                              type="text"
+                              value={answers[i] || ""}
+                              onChange={(e) =>
+                                setAnswers((prev) => ({
+                                  ...prev,
+                                  [i]: e.target.value,
+                                }))
+                              }
+                              placeholder="Your answer"
+                              className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        onClick={submitAnswers}
+                        disabled={!Object.values(answers).some((a) => a.trim())}
+                        className="mt-3 inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
+                      >
+                        ↻ Update the note
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="mt-5 border-t border-border pt-5 text-center">
+                    <p className="font-medium text-foreground">Look right?</p>
+                    <div className="mt-3 flex flex-wrap justify-center gap-3">
+                      <button
+                        onClick={() =>
+                          setReviewStep(canSave ? "archive" : "send")
+                        }
+                        className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-white font-semibold text-base shadow-sm hover:bg-brand-600 transition"
+                      >
+                        👍 Looks good
+                      </button>
+                      <button
+                        onClick={tweakSummary}
+                        className="inline-flex items-center gap-2 rounded-xl bg-surface px-6 py-3 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
+                      >
+                        ✏️ Tweak it
+                      </button>
+                    </div>
                   </div>
-                </div>
+                </>
               )}
 
+              {/* Step 3: save, then choose to send or finish */}
               {reviewStep === "archive" && (
                 <div className="mt-5 border-t border-border pt-5 text-center">
-                  <p className="font-medium text-foreground mb-3">
-                    Save to archive?
-                  </p>
-                  <div className="flex flex-wrap justify-center gap-3">
-                    <button
-                      onClick={handleArchive}
-                      disabled={archiveState === "saving"}
-                      className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-white font-semibold text-base shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
-                    >
-                      {archiveState === "saving" ? "Saving…" : "💾 Archive it"}
-                    </button>
-                    <button
-                      onClick={() => setReviewStep("send")}
-                      className="inline-flex items-center gap-2 rounded-xl bg-surface px-6 py-3 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
-                    >
-                      Skip
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Send step: customer message + templates */}
-          {writingDone && reviewStep === "send" && (
-            <div className="tt-fade-in">
-              {archiveState === "saved" && canSave && (
-                <p className="mt-4 text-center text-sm font-medium text-success">
-                  ✓ Saved to your archive
-                </p>
-              )}
-              <SendToCustomer
-                summary={summary}
-                defaultReplyTo={replyTo}
-                defaultCustomerEmail={customerEmail}
-                defaultCustomerPhone={customerPhone}
-              />
-
-              {templates.length > 0 && (
-                <div className="mt-5 border-t border-border pt-5">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-accent-600 mb-3">
-                    Fill a template
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    <select
-                      value={templateId}
-                      onChange={(e) => setTemplateId(e.target.value)}
-                      className="flex-1 min-w-[180px] rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-                    >
-                      <option value="">Choose a template…</option>
-                      {templates.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={fillTemplate}
-                      disabled={!templateId || filling}
-                      className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
-                    >
-                      {filling ? "Filling…" : "✨ Auto-fill"}
-                    </button>
-                  </div>
-
-                  {/* Visual form, filled onto the tech's own document */}
-                  {filledHtml && (
-                    <div className="mt-4">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-muted">
-                          Your filled form
-                        </span>
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={copyFilled}
-                            className="text-xs font-medium text-brand hover:underline"
-                          >
-                            {filledCopied ? "✓ Copied" : "Copy text"}
-                          </button>
-                          <button
-                            onClick={printFilledForm}
-                            className="text-xs font-medium text-brand hover:underline"
-                          >
-                            🖨 Print / Save PDF
-                          </button>
-                        </div>
-                      </div>
-                      <div className="rounded-xl border border-border bg-white p-5 overflow-x-auto">
-                        <div
-                          className="tt-form"
-                          dangerouslySetInnerHTML={{ __html: filledHtml }}
-                        />
-                      </div>
-                      <p className="mt-1.5 text-xs text-muted">
-                        Anything highlighted in amber still needs you to fill it
-                        in.
+                  {archiveState !== "saved" ? (
+                    <>
+                      <p className="font-medium text-foreground mb-3">
+                        Save this to your archive?
                       </p>
-                    </div>
-                  )}
-
-                  {/* Legacy plain-text template */}
-                  {filled && (
-                    <div className="mt-4">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-muted">
-                          Filled template
-                        </span>
+                      <div className="flex flex-wrap justify-center gap-3">
                         <button
-                          onClick={copyFilled}
-                          className="text-xs font-medium text-brand hover:underline"
+                          onClick={handleArchive}
+                          disabled={archiveState === "saving"}
+                          className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-white font-semibold text-base shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
                         >
-                          {filledCopied ? "✓ Copied" : "Copy"}
+                          {archiveState === "saving"
+                            ? "Saving…"
+                            : "💾 Archive it"}
+                        </button>
+                        <button
+                          onClick={() => setReviewStep("send")}
+                          className="inline-flex items-center gap-2 rounded-xl bg-surface px-6 py-3 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
+                        >
+                          Skip
                         </button>
                       </div>
-                      <pre className="whitespace-pre-wrap rounded-xl border border-border bg-slate-50 p-4 text-[14px] leading-relaxed text-foreground font-sans">
-                        {filled}
-                      </pre>
-                    </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium text-success mb-1">
+                        ✓ Saved to your archive
+                      </p>
+                      <p className="font-medium text-foreground mb-3">
+                        Send it to the customer now?
+                      </p>
+                      <div className="flex flex-wrap justify-center gap-3">
+                        <button
+                          onClick={() => setReviewStep("send")}
+                          className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-white font-semibold text-base shadow-sm hover:bg-brand-600 transition"
+                        >
+                          ✉️ Send to customer
+                        </button>
+                        <button
+                          onClick={() => {
+                            resetAll();
+                            setPhase("idle");
+                          }}
+                          className="inline-flex items-center gap-2 rounded-xl bg-surface px-6 py-3 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
+                        >
+                          Done for now
+                        </button>
+                      </div>
+                    </>
                   )}
                 </div>
               )}
 
-              <div className="mt-5 border-t border-border pt-4">
-                <button
-                  onClick={() => askDelete("summarized")}
-                  className="text-sm font-medium text-muted hover:text-danger transition"
-                >
-                  🗑 Delete &amp; start over
-                </button>
-              </div>
+              {/* Step 4: send to customer */}
+              {reviewStep === "send" && (
+                <div className="tt-fade-in">
+                  {archiveState === "saved" && canSave && (
+                    <p className="mt-4 text-center text-sm font-medium text-success">
+                      ✓ Saved to your archive
+                    </p>
+                  )}
+                  <SendToCustomer
+                    summary={summary}
+                    defaultReplyTo={replyTo}
+                    defaultCustomerEmail={customerEmail}
+                    defaultCustomerPhone={customerPhone}
+                  />
+                  <div className="mt-5 border-t border-border pt-4 text-center">
+                    <button
+                      onClick={() => {
+                        resetAll();
+                        setPhase("idle");
+                      }}
+                      className="tt-pop text-sm font-medium text-brand hover:underline"
+                    >
+                      ＋ Start a new note
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Image lightbox */}
+      {viewing && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setViewing(null)}
+        >
+          <div className="relative max-h-[88vh] max-w-3xl">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={viewing.preview}
+              alt={viewing.name}
+              className="max-h-[88vh] w-auto rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              onClick={() => setViewing(null)}
+              aria-label="Close"
+              className="absolute -right-3 -top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white text-foreground shadow-md"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Attachment delete confirm */}
+      {pendingDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setPendingDelete(null)}
+        >
+          <div
+            className="w-full max-w-xs rounded-2xl bg-surface p-5 text-center shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="font-medium text-foreground">
+              Delete this attachment?
+            </p>
+            <p className="mt-1 mb-4 truncate text-xs text-muted">
+              {pendingDelete.name}
+            </p>
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={() => {
+                  removeAttachment(pendingDelete);
+                  setPendingDelete(null);
+                }}
+                className="tt-pop rounded-lg bg-danger px-6 py-2.5 text-sm font-medium text-white shadow-sm hover:opacity-90 transition"
+              >
+                Delete
+              </button>
+              <button
+                onClick={() => setPendingDelete(null)}
+                className="tt-pop rounded-lg bg-surface px-6 py-2.5 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50 transition"
+              >
+                Keep
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

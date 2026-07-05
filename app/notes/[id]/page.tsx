@@ -140,6 +140,7 @@ export default async function NoteDetailPage(props: {
               items={summary.partsAndMaterials}
               accent
             />
+            <Section title="Customer requests" items={summary.customerRequests} />
             <Section title="Next steps" items={summary.nextSteps} />
             {summary.customerMessage && (
               <div className="mt-4 rounded-xl bg-brand-50 p-4">

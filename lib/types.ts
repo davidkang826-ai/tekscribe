@@ -3,6 +3,7 @@ export type JobSummary = {
   workDone: string[];
   partsAndMaterials: string[];
   nextSteps: string[];
+  customerRequests: string[]; // explicit asks from the customer; empty = none
   customerMessage: string;
 };
 

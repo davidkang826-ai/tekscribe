@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthState = { error?: string; ok?: boolean };
@@ -103,6 +104,7 @@ export async function saveProfile(
 ): Promise<AuthState> {
   const phone = String(formData.get("phone") ?? "").trim();
   const replyTo = String(formData.get("reply_to_email") ?? "").trim();
+  const displayName = String(formData.get("display_name") ?? "").trim();
 
   if (!phone) return { error: "Please enter your phone number." };
   if (replyTo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyTo))
@@ -116,9 +118,46 @@ export async function saveProfile(
 
   const { error } = await supabase
     .from("profiles")
-    .update({ phone, reply_to_email: replyTo || user.email })
+    .update({
+      phone,
+      reply_to_email: replyTo || user.email,
+      display_name: displayName || null,
+    })
     .eq("id", user.id);
 
   if (error) return { error: error.message };
   redirect("/");
+}
+
+/** Settings page: update the tech's name, reply-to email, and business name. */
+export async function updateSettings(
+  _prev: AuthState,
+  formData: FormData
+): Promise<AuthState> {
+  const displayName = String(formData.get("display_name") ?? "").trim();
+  const replyTo = String(formData.get("reply_to_email") ?? "").trim();
+  const businessName = String(formData.get("business_name") ?? "").trim();
+
+  if (replyTo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyTo))
+    return { error: "That reply-to email doesn't look right." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      display_name: displayName || null,
+      reply_to_email: replyTo || user.email,
+      business_name: businessName || null,
+    })
+    .eq("id", user.id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/");
+  revalidatePath("/settings");
+  return { ok: true };
 }

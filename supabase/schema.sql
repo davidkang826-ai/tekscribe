@@ -16,6 +16,10 @@ create table if not exists public.profiles (
 -- For existing databases created before reply_to_email existed:
 alter table public.profiles add column if not exists reply_to_email text;
 
+-- The technician's own name, used to sign customer messages ("Hi, it's John.").
+-- Editable in Settings so they can go by a nickname if they want.
+alter table public.profiles add column if not exists display_name text;
+
 alter table public.profiles enable row level security;
 
 drop policy if exists "own profile - select" on public.profiles;
@@ -155,9 +159,12 @@ drop policy if exists "own customers - delete" on public.customers;
 create policy "own customers - delete" on public.customers
   for delete using (auth.uid() = user_id);
 
--- One entry per customer name (case-insensitive) per technician.
-create unique index if not exists customers_user_name_idx
-  on public.customers (user_id, lower(name));
+-- One entry per (name, email) per technician, so the same name can recur with
+-- different emails (two different "John Smith"s) and get disambiguated by email.
+-- Replaces the older name-only unique index.
+drop index if exists public.customers_user_name_idx;
+create unique index if not exists customers_user_name_email_idx
+  on public.customers (user_id, lower(name), coalesce(lower(email), ''));
 
 -- ---------------------------------------------------------------------------
 -- Storage: a private bucket for visit photos & files. Each technician can only

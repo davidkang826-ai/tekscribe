@@ -5,14 +5,14 @@ import Recorder from "@/components/Recorder";
 import SignOutButton from "@/components/SignOutButton";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import type { Template, Customer } from "@/lib/types";
+import type { Customer } from "@/lib/types";
 
 export default async function Home() {
   let authed = false;
-  let templates: Template[] = [];
   let customers: Customer[] = [];
   let replyTo = "";
   let userId = "";
+  let techName = "";
 
   // Once Supabase is configured, the app requires a verified account with a
   // phone number. Until then it stays open so the core loop is demoable.
@@ -25,17 +25,12 @@ export default async function Home() {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("phone, reply_to_email")
+      .select("phone, reply_to_email, display_name")
       .eq("id", user.id)
       .single();
     if (!profile?.phone) redirect("/onboarding");
     replyTo = profile.reply_to_email || user.email || "";
-
-    const { data: tpls } = await supabase
-      .from("templates")
-      .select("id, name, content")
-      .order("created_at", { ascending: false });
-    templates = tpls ?? [];
+    techName = profile.display_name || "";
 
     const { data: custs } = await supabase
       .from("customers")
@@ -55,16 +50,16 @@ export default async function Home() {
           {authed ? (
             <div className="flex items-center gap-5">
               <Link
-                href="/templates"
-                className="tt-pop text-sm font-medium text-muted hover:text-foreground transition-colors leading-none"
-              >
-                Templates
-              </Link>
-              <Link
                 href="/notes"
                 className="tt-pop text-sm font-medium text-muted hover:text-foreground transition-colors leading-none"
               >
                 Archive
+              </Link>
+              <Link
+                href="/settings"
+                className="tt-pop text-sm font-medium text-muted hover:text-foreground transition-colors leading-none"
+              >
+                Settings
               </Link>
               <SignOutButton />
             </div>
@@ -79,19 +74,19 @@ export default async function Home() {
       <main className="flex-1 w-full max-w-3xl mx-auto px-5 py-10 sm:py-14">
         <div className="text-center mb-10">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            Your visit, in your words
+            Your intelligent scribe
           </h1>
           <p className="mt-2 text-muted max-w-lg mx-auto">
-            Just talk, mess and all. We write it up clean.
+            We listen and analyze so you can focus on the job.
           </p>
         </div>
 
         <Recorder
           canSave={authed}
-          templates={templates}
           customers={customers}
           replyTo={replyTo}
           userId={userId}
+          techName={techName}
         />
       </main>
 

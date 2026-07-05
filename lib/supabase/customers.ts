@@ -2,7 +2,12 @@
 
 import { createClient } from "@/lib/supabase/server";
 
-/** Save (or update) a customer in the tech's directory so it recalls later. */
+/**
+ * Save (or update) a customer in the tech's directory so it recalls later.
+ * Customers are keyed by name AND email, so the same name can appear more than
+ * once with different emails (e.g. two different "John Smith"s). When an email
+ * is given we match on name+email; without an email we fall back to name only.
+ */
 export async function upsertCustomer(input: {
   name: string;
   email?: string;
@@ -19,19 +24,21 @@ export async function upsertCustomer(input: {
   } = await supabase.auth.getUser();
   if (!user) return;
 
-  const { data: existing } = await supabase
+  let query = supabase
     .from("customers")
-    .select("id")
+    .select("id, email, phone")
     .eq("user_id", user.id)
-    .ilike("name", name)
-    .limit(1);
+    .ilike("name", name);
+  // Match the exact person when we have an email to key on.
+  query = email ? query.ilike("email", email) : query.limit(1);
+  const { data: existing } = await query;
   const dupe = existing?.[0];
 
   if (dupe) {
     // Fill in any new details without wiping what's already saved.
     const patch: Record<string, string> = {};
-    if (email) patch.email = email;
-    if (phone) patch.phone = phone;
+    if (email && !dupe.email) patch.email = email;
+    if (phone && !dupe.phone) patch.phone = phone;
     if (Object.keys(patch).length) {
       await supabase
         .from("customers")
