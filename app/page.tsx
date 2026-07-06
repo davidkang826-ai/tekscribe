@@ -25,12 +25,26 @@ export default async function Home() {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("phone, reply_to_email, display_name")
+      .select("phone, reply_to_email")
       .eq("id", user.id)
       .single();
     if (!profile?.phone) redirect("/onboarding");
     replyTo = profile.reply_to_email || user.email || "";
-    techName = profile.display_name || "";
+
+    // display_name is optional and may not exist yet on databases where the
+    // migration hasn't run. Fetch it on its own and tolerate failure, so a
+    // missing column can never break the home page (which previously looped
+    // to /onboarding and back for signed-in users).
+    try {
+      const { data: nameRow } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", user.id)
+        .maybeSingle();
+      techName = nameRow?.display_name || "";
+    } catch {
+      techName = "";
+    }
 
     const { data: custs } = await supabase
       .from("customers")
