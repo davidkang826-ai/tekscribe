@@ -7,13 +7,20 @@ import { saveNote } from "@/lib/supabase/notes";
 import { upsertCustomer } from "@/lib/supabase/customers";
 import { createClient } from "@/lib/supabase/client";
 import type { JobSummary, Customer, Attachment } from "@/lib/types";
+import {
+  savePending,
+  listPending,
+  deletePending,
+  countPending,
+} from "@/lib/offline-queue";
 
 type Phase =
   | "idle"
   | "recording"
   | "paused" // recording paused mid-visit; tap to resume, or hold to end
   | "transcribing"
-  | "transcribeError" // transcription failed; audio kept for retry
+  | "transcribeError" // transcription failed on the server; audio kept for retry
+  | "offlineSaved" // no connection; recording queued on-device to finish later
   | "transcript" // Step 1: transcript shown
   | "summarizing" // calling the AI
   | "summarized" // Steps 2-4: review → save → send
@@ -163,6 +170,10 @@ export default function Recorder({
   const [pendingDelete, setPendingDelete] = useState<Attach | null>(null);
   const [holding, setHolding] = useState(false);
   const [endConfirm, setEndConfirm] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [isOnline, setIsOnline] = useState(true);
   const visitIdRef = useRef<string>("");
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -172,6 +183,8 @@ export default function Recorder({
   const lastBlobRef = useRef<Blob | null>(null);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdFiredRef = useRef(false);
+  const audioUrlRef = useRef<string | null>(null);
+  const phaseRef = useRef<Phase>("idle");
 
   const stopTimer = () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -195,10 +208,55 @@ export default function Recorder({
     setPendingDelete(null);
     setHolding(false);
     setEndConfirm(false);
+    setEditing(false);
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
+    setAudioUrl(null);
     setReviewStep("confirm");
     setArchiveState("idle");
     lastBlobRef.current = null;
   };
+
+  // Keep a ref of the current phase for event listeners that outlive a render.
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
+  // Offline queue: surface any saved recordings and auto-finish them online.
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+
+    const goOnline = () => {
+      setIsOnline(true);
+      if (phaseRef.current === "idle" || phaseRef.current === "offlineSaved") {
+        processNextPending();
+      }
+    };
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+
+    // On load, show what's waiting and resume if we're already online and idle.
+    (async () => {
+      try {
+        const n = await countPending();
+        setPendingCount(n);
+        if (n > 0 && navigator.onLine && phaseRef.current === "idle") {
+          processNextPending();
+        }
+      } catch {
+        // IndexedDB unavailable; skip the queue entirely.
+      }
+    })();
+
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Recall a saved customer. If several share the name, let them pick by email.
   function onCustomerName(value: string) {
@@ -253,7 +311,7 @@ export default function Recorder({
           type: recorder.mimeType || "audio/webm",
         });
         lastBlobRef.current = blob;
-        await transcribe(blob);
+        await runTranscription(blob);
       };
 
       recorder.start();
@@ -340,27 +398,101 @@ export default function Recorder({
     setEndConfirm(true);
   }
 
-  async function transcribe(blob: Blob) {
+  function setAudio(blob: Blob) {
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    const url = URL.createObjectURL(blob);
+    audioUrlRef.current = url;
+    setAudioUrl(url);
+  }
+
+  async function refreshPending() {
     try {
-      const ext = blob.type.includes("mp4") ? "mp4" : "webm";
-      const form = new FormData();
-      form.append("audio", blob, `note.${ext}`);
-      const res = await fetch("/api/transcribe", { method: "POST", body: form });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Transcription failed.");
-      setTranscript(data.text || "");
+      setPendingCount(await countPending());
+    } catch {
+      // IndexedDB unavailable; leave the count as-is.
+    }
+  }
+
+  async function transcribeNetwork(blob: Blob): Promise<string> {
+    const ext = blob.type.includes("mp4") ? "mp4" : "webm";
+    const form = new FormData();
+    form.append("audio", blob, `note.${ext}`);
+    const res = await fetch("/api/transcribe", { method: "POST", body: form });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const e = new Error(
+        (data as { error?: string }).error || "Transcription failed."
+      ) as Error & { server?: boolean };
+      e.server = true; // reached the server, so this is not an offline failure
+      throw e;
+    }
+    return (data as { text?: string }).text || "";
+  }
+
+  // Transcribe a recording. If the network is down, keep the audio in an
+  // on-device queue and tell the tech we'll finish it when they're back online.
+  async function runTranscription(blob: Blob, queueId?: string) {
+    lastBlobRef.current = blob;
+    setPhase("transcribing");
+    try {
+      const text = await transcribeNetwork(blob);
+      setTranscript(text);
+      setAudio(blob);
+      if (queueId) {
+        try {
+          await deletePending(queueId);
+        } catch {
+          // ignore
+        }
+      }
+      await refreshPending();
       setPhase("transcript");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Transcription failed.");
-      setPhase("transcribeError");
+      const isServer = (err as { server?: boolean })?.server === true;
+      const offline =
+        !navigator.onLine || (!isServer && err instanceof TypeError);
+      if (offline) {
+        if (!queueId) {
+          try {
+            await savePending(blob);
+          } catch {
+            setError(
+              "You appear to be offline, and this device can't save the recording. Try again when you have signal."
+            );
+            setPhase("transcribeError");
+            return;
+          }
+        }
+        setError(null);
+        await refreshPending();
+        setPhase("offlineSaved");
+      } else {
+        setError(err instanceof Error ? err.message : "Transcription failed.");
+        setPhase("transcribeError");
+      }
     }
+  }
+
+  // Pull the oldest saved recording off the queue and finish it.
+  async function processNextPending() {
+    let items;
+    try {
+      items = await listPending();
+    } catch {
+      return;
+    }
+    if (!items.length) {
+      await refreshPending();
+      if (phaseRef.current === "offlineSaved") setPhase("idle");
+      return;
+    }
+    await runTranscription(items[0].blob, items[0].id);
   }
 
   function retryTranscribe() {
     if (!lastBlobRef.current) return;
     setError(null);
-    setPhase("transcribing");
-    transcribe(lastBlobRef.current);
+    runTranscription(lastBlobRef.current);
   }
 
   // Optional extra context (the tech's answers to clarifying questions) is
@@ -379,10 +511,14 @@ export default function Recorder({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Summarization failed.");
-      setSummary(data.summary as JobSummary);
+      const sum = data.summary as JobSummary;
+      setSummary(sum);
       setQuestions(Array.isArray(data.questions) ? data.questions : []);
       setAnswers({});
-      setWritingDone(false);
+      setEditing(false);
+      // No customer message means no typewriter to finish, so unlock the
+      // review controls right away.
+      setWritingDone(!sum.customerMessage);
       setReviewStep("confirm");
       setPhase("summarized");
     } catch (err) {
@@ -531,6 +667,29 @@ export default function Recorder({
 
   return (
     <div className="flex flex-col items-center w-full max-w-xl mx-auto">
+      {/* Recordings saved offline, waiting to be finished */}
+      {pendingCount > 0 && phase === "idle" && (
+        <div className="mb-6 w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center">
+          <p className="text-sm font-medium text-amber-900">
+            ⏳ {pendingCount} recording{pendingCount > 1 ? "s" : ""} saved on your
+            phone
+          </p>
+          <p className="mt-0.5 text-xs text-amber-900/80">
+            {isOnline
+              ? "Ready to finish now."
+              : "We'll finish the moment you're back online. It's safe to close the app."}
+          </p>
+          {isOnline && (
+            <button
+              onClick={processNextPending}
+              className="tt-pop mt-2 inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-600 transition"
+            >
+              ▶ Finish {pendingCount > 1 ? "the next one" : "it"} now
+            </button>
+          )}
+        </div>
+      )}
+
       {showButton && (
         <>
           <button
@@ -714,6 +873,41 @@ export default function Recorder({
         </div>
       )}
 
+      {/* Offline: the recording is safe on-device, waiting for a connection */}
+      {phase === "offlineSaved" && (
+        <div className="mt-4 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm text-center">
+          <div className="text-2xl mb-1">📴</div>
+          <p className="text-foreground font-medium">Saved on your phone</p>
+          <p className="text-sm text-muted mt-1 mb-4">
+            {isOnline
+              ? "Your recording is safe. Let's turn it into a note."
+              : "You're offline, so we saved your recording here. We'll finish it automatically the moment you're back online. It's safe to close the app."}
+          </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            <button
+              onClick={processNextPending}
+              className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 transition"
+            >
+              {isOnline ? "▶ Finish it now" : "↻ Try now"}
+            </button>
+            <button
+              onClick={() => {
+                resetAll();
+                setPhase("idle");
+              }}
+              className="inline-flex items-center gap-2 rounded-lg bg-surface px-5 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 transition"
+            >
+              Done for now
+            </button>
+          </div>
+          {pendingCount > 1 && (
+            <p className="mt-3 text-xs text-muted">
+              {pendingCount} recordings waiting in total.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Numbered step indicator across the review flow */}
       {stepNum > 0 && (
         <div className="mt-4 w-full">
@@ -739,6 +933,15 @@ export default function Recorder({
           ) : (
             <div className="w-full rounded-xl border border-border bg-surface p-4 text-foreground text-[15px] leading-relaxed shadow-sm whitespace-pre-wrap">
               {transcript}
+            </div>
+          )}
+
+          {audioUrl && (
+            <div className="mt-2">
+              <audio src={audioUrl} controls className="w-full" />
+              <p className="mt-1 text-[11px] text-muted">
+                Play it back to double-check what you said.
+              </p>
             </div>
           )}
 
@@ -933,14 +1136,30 @@ export default function Recorder({
       {/* AI summary + guided review (Steps 2-4) */}
       {phase === "summarized" && summary && (
         <div className="mt-4 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center justify-between gap-2 mb-3">
             <span className="text-xs font-semibold uppercase tracking-wide text-accent-600">
               AI Summary
             </span>
+            {reviewStep === "confirm" && (
+              <button
+                onClick={() => {
+                  if (editing) setSummary((s) => (s ? cleanSummary(s) : s));
+                  setEditing((v) => !v);
+                }}
+                className="tt-pop text-xs font-medium text-brand hover:underline"
+              >
+                {editing ? "✓ Done editing" : "✏️ Edit"}
+              </button>
+            )}
           </div>
-          <h3 className="text-lg font-semibold text-foreground tt-fade-in">
-            {summary.jobTitle}
-          </h3>
+
+          {editing ? (
+            <SummaryEditor summary={summary} onChange={setSummary} />
+          ) : (
+            <>
+              <h3 className="text-lg font-semibold text-foreground tt-fade-in">
+                {summary.jobTitle}
+              </h3>
 
           <SummarySection title="Work done" items={summary.workDone} />
           <SummarySection
@@ -973,21 +1192,27 @@ export default function Recorder({
             items={summary.nextSteps}
           />
 
-          {summary.customerMessage && (
-            <div className="mt-4 rounded-xl bg-brand-50 p-4">
-              <div className="text-xs font-semibold uppercase tracking-wide text-brand mb-1.5">
-                Customer message
-              </div>
-              <p className="text-[15px] leading-relaxed text-foreground">
-                <Typewriter
-                  text={summary.customerMessage}
-                  onDone={() => setWritingDone(true)}
-                />
-              </p>
-            </div>
+              {summary.customerMessage && (
+                <div className="mt-4 rounded-xl bg-brand-50 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-brand mb-1.5">
+                    Customer message
+                  </div>
+                  <p className="text-[15px] leading-relaxed text-foreground">
+                    {writingDone ? (
+                      summary.customerMessage
+                    ) : (
+                      <Typewriter
+                        text={summary.customerMessage}
+                        onDone={() => setWritingDone(true)}
+                      />
+                    )}
+                  </p>
+                </div>
+              )}
+            </>
           )}
 
-          {writingDone && (
+          {writingDone && !editing && (
             <div className="tt-fade-in">
               {/* Step 2: review, clarify, confirm */}
               {reviewStep === "confirm" && (
@@ -1238,6 +1463,115 @@ function SummarySection({
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+type ListKey = "workDone" | "partsAndMaterials" | "customerRequests" | "nextSteps";
+
+/** Trim edited fields and drop blank bullet lines before saving/sending. */
+function cleanSummary(s: JobSummary): JobSummary {
+  const clean = (arr: string[]) => arr.map((x) => x.trim()).filter(Boolean);
+  return {
+    ...s,
+    jobTitle: s.jobTitle.trim() || "Service visit",
+    workDone: clean(s.workDone),
+    partsAndMaterials: clean(s.partsAndMaterials),
+    nextSteps: clean(s.nextSteps),
+    customerRequests: clean(s.customerRequests),
+    customerMessage: s.customerMessage.trim(),
+  };
+}
+
+/** Tap-to-fix editor for the whole summary: title, every bullet, the message. */
+function SummaryEditor({
+  summary,
+  onChange,
+}: {
+  summary: JobSummary;
+  onChange: (s: JobSummary) => void;
+}) {
+  const fields: [ListKey, string][] = [
+    ["workDone", "Work done"],
+    ["partsAndMaterials", "Parts used"],
+    ["customerRequests", "Customer requests"],
+    ["nextSteps", "Next steps & things to buy"],
+  ];
+  const setList = (key: ListKey, list: string[]) =>
+    onChange({ ...summary, [key]: list });
+
+  return (
+    <div className="mt-2 space-y-4">
+      <div>
+        <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+          Title
+        </label>
+        <input
+          value={summary.jobTitle}
+          onChange={(e) => onChange({ ...summary, jobTitle: e.target.value })}
+          className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+        />
+      </div>
+
+      {fields.map(([key, label]) => (
+        <div key={key}>
+          <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+            {label}
+          </label>
+          <div className="space-y-2">
+            {summary[key].map((item, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input
+                  value={item}
+                  onChange={(e) =>
+                    setList(
+                      key,
+                      summary[key].map((b, idx) =>
+                        idx === i ? e.target.value : b
+                      )
+                    )
+                  }
+                  className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setList(
+                      key,
+                      summary[key].filter((_, idx) => idx !== i)
+                    )
+                  }
+                  aria-label="Remove line"
+                  className="tt-pop flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted ring-1 ring-border hover:text-danger"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setList(key, [...summary[key], ""])}
+              className="tt-pop text-xs font-medium text-brand hover:underline"
+            >
+              + Add line
+            </button>
+          </div>
+        </div>
+      ))}
+
+      <div>
+        <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+          Customer message
+        </label>
+        <textarea
+          value={summary.customerMessage}
+          onChange={(e) =>
+            onChange({ ...summary, customerMessage: e.target.value })
+          }
+          rows={4}
+          className="w-full rounded-lg border border-border bg-surface p-3 text-[15px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/30"
+        />
+      </div>
     </div>
   );
 }
