@@ -554,6 +554,7 @@ export default function Recorder({
   // Escape hatch from review: fix the raw transcript, then redo the summary.
   // The current summary is kept so "Back to the note" needs no new AI call.
   function tweakSummary() {
+    setEditing(false);
     setPhase("transcript");
   }
 
@@ -1155,9 +1156,32 @@ export default function Recorder({
         </div>
       )}
 
+      {/* What you said: up top, so the tech can check the note against it */}
+      {phase === "summarized" && summary && reviewStep === "confirm" && (
+        <div className="mt-2 w-full">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted mb-2">
+            What you said
+          </div>
+          <div className="rounded-xl border border-border bg-surface p-3 shadow-sm">
+            <div className="max-h-36 overflow-y-auto text-[14px] leading-relaxed text-foreground whitespace-pre-wrap">
+              {transcript}
+            </div>
+            {audioUrl && (
+              <audio src={audioUrl} controls className="mt-2 w-full" />
+            )}
+            <button
+              onClick={tweakSummary}
+              className="mt-2 text-xs font-medium text-brand hover:underline"
+            >
+              ✏️ Fix the transcript &amp; redo
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Review (Step 1) and Send (Step 2) */}
       {phase === "summarized" && summary && (
-        <div className="mt-2 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm">
+        <div className="mt-3 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm">
           <div className="flex items-center justify-between gap-2 mb-3">
             <span className="text-xs font-semibold uppercase tracking-wide text-accent-600">
               AI Summary
@@ -1435,25 +1459,6 @@ export default function Recorder({
                       )}
                     </div>
                   )}
-
-                  {/* The raw memo, one tap away for a trust check */}
-                  <details className="mt-5 border-t border-border pt-4">
-                    <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-muted hover:text-foreground transition-colors">
-                      What you said
-                    </summary>
-                    <div className="mt-2 rounded-xl border border-border bg-slate-50 p-3 text-[14px] leading-relaxed text-foreground whitespace-pre-wrap">
-                      {transcript}
-                    </div>
-                    {audioUrl && (
-                      <audio src={audioUrl} controls className="mt-2 w-full" />
-                    )}
-                    <button
-                      onClick={tweakSummary}
-                      className="mt-2 text-xs font-medium text-brand hover:underline"
-                    >
-                      ✏️ Fix the transcript &amp; redo
-                    </button>
-                  </details>
 
                   {/* Step 1 actions */}
                   <div className="mt-5 border-t border-border pt-5 text-center">
