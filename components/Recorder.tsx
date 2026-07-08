@@ -838,43 +838,49 @@ export default function Recorder({
             </div>
           )}
 
-          {/* Attach photos/files + a subtle end fallback, hidden mid-confirm */}
-          {canSave && (isRecording || isPaused) && !endConfirm && (
+          {/* Attach photos/files (signed in) + an end fallback for everyone,
+              hidden mid-confirm */}
+          {(isRecording || isPaused) && !endConfirm && (
             <div className="mt-4 flex flex-col items-center gap-2">
-              <div className="flex items-center gap-2">
-                <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
-                  📷 Photo
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={addAttachment}
-                    className="hidden"
-                  />
-                </label>
-                <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
-                  📎 File
-                  <input
-                    type="file"
-                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
-                    onChange={addAttachment}
-                    className="hidden"
-                  />
-                </label>
-                {uploading ? (
-                  <span className="text-xs text-brand">Uploading…</span>
-                ) : (
-                  attachments.length > 0 && (
-                    <span className="text-xs text-muted">
-                      {attachments.length} attached
-                    </span>
-                  )
-                )}
-              </div>
-              <p className="max-w-xs text-center text-[11px] text-muted">
-                Snap the model plate, the damage, or a before/after. Files like a
-                receipt or permit work too. They stay with this visit.
-              </p>
+              {canSave && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
+                      📷 Photo
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={addAttachment}
+                        className="hidden"
+                      />
+                    </label>
+                    <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
+                      📎 File
+                      <input
+                        type="file"
+                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                        onChange={addAttachment}
+                        className="hidden"
+                      />
+                    </label>
+                    {uploading ? (
+                      <span className="text-xs text-brand">Uploading…</span>
+                    ) : (
+                      attachments.length > 0 && (
+                        <span className="text-xs text-muted">
+                          {attachments.length} attached
+                        </span>
+                      )
+                    )}
+                  </div>
+                  <p className="max-w-xs text-center text-[11px] text-muted">
+                    Snap the model plate, the damage, or a before/after. Files
+                    like a receipt or permit work too. They stay with this
+                    visit.
+                  </p>
+                </>
+              )}
               <button
                 onClick={openEndConfirm}
                 className="mt-1 text-xs font-medium text-muted underline hover:text-foreground"
