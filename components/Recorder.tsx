@@ -171,6 +171,8 @@ export default function Recorder({
   const [holding, setHolding] = useState(false);
   const [endConfirm, setEndConfirm] = useState(false);
   const [editing, setEditing] = useState(false);
+  // Rewriting the customer message after the tech edits the sections.
+  const [refreshingMsg, setRefreshingMsg] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
@@ -185,6 +187,8 @@ export default function Recorder({
   const holdFiredRef = useRef(false);
   const audioUrlRef = useRef<string | null>(null);
   const phaseRef = useRef<Phase>("idle");
+  // Snapshot of the summary when editing starts, to detect what changed.
+  const editSnapshotRef = useRef<string>("");
 
   const stopTimer = () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -209,6 +213,7 @@ export default function Recorder({
     setHolding(false);
     setEndConfirm(false);
     setEditing(false);
+    setRefreshingMsg(false);
     if (audioUrlRef.current) {
       URL.revokeObjectURL(audioUrlRef.current);
       audioUrlRef.current = null;
@@ -542,6 +547,61 @@ export default function Recorder({
     setWritingDone(false);
     setReviewStep("confirm");
     setPhase("transcript");
+  }
+
+  // After "Done editing": if the sections changed, rewrite the customer
+  // message so it reflects the edits. If the tech rewrote the message by hand
+  // in the same session, their wording wins and we leave it alone.
+  async function maybeRefreshMessage(edited: JobSummary) {
+    let before: JobSummary | null = null;
+    try {
+      before = JSON.parse(editSnapshotRef.current || "null");
+    } catch {
+      before = null;
+    }
+    if (!before) return;
+
+    const sectionsOf = (s: JobSummary) =>
+      JSON.stringify([
+        s.jobTitle,
+        s.workDone,
+        s.partsAndMaterials,
+        s.customerRequests,
+        s.nextSteps,
+      ]);
+    const sectionsChanged = sectionsOf(before) !== sectionsOf(edited);
+    const messageEditedByHand =
+      before.customerMessage.trim() !== edited.customerMessage.trim();
+    if (!sectionsChanged || messageEditedByHand) return;
+
+    setRefreshingMsg(true);
+    try {
+      const res = await fetch("/api/rewrite-message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ summary: edited, techName }),
+      });
+      const data = await res.json();
+      if (
+        res.ok &&
+        typeof data.customerMessage === "string" &&
+        data.customerMessage.trim()
+      ) {
+        setSummary((s) =>
+          s ? { ...s, customerMessage: data.customerMessage.trim() } : s
+        );
+      } else {
+        setError(
+          "Couldn't refresh the customer message, so it may not reflect your edits yet. You can edit it by hand."
+        );
+      }
+    } catch {
+      setError(
+        "Couldn't refresh the customer message, so it may not reflect your edits yet. You can edit it by hand."
+      );
+    } finally {
+      setRefreshingMsg(false);
+    }
   }
 
   async function handleArchive() {
@@ -1151,8 +1211,15 @@ export default function Recorder({
             {reviewStep === "confirm" && (
               <button
                 onClick={() => {
-                  if (editing) setSummary((s) => (s ? cleanSummary(s) : s));
-                  setEditing((v) => !v);
+                  if (editing) {
+                    const cleaned = cleanSummary(summary);
+                    setSummary(cleaned);
+                    setEditing(false);
+                    maybeRefreshMessage(cleaned);
+                  } else {
+                    editSnapshotRef.current = JSON.stringify(summary);
+                    setEditing(true);
+                  }
                 }}
                 className="tt-pop text-xs font-medium text-brand hover:underline"
               >
@@ -1200,21 +1267,28 @@ export default function Recorder({
             items={summary.nextSteps}
           />
 
-              {summary.customerMessage && (
+              {(summary.customerMessage || refreshingMsg) && (
                 <div className="mt-4 rounded-xl bg-brand-50 p-4">
                   <div className="text-xs font-semibold uppercase tracking-wide text-brand mb-1.5">
                     Customer message
                   </div>
-                  <p className="text-[15px] leading-relaxed text-foreground">
-                    {writingDone ? (
-                      summary.customerMessage
-                    ) : (
-                      <Typewriter
-                        text={summary.customerMessage}
-                        onDone={() => setWritingDone(true)}
-                      />
-                    )}
-                  </p>
+                  {refreshingMsg ? (
+                    <p className="inline-flex items-center gap-2 text-sm font-medium text-brand">
+                      <LogoMark size={18} className="tt-pulse" />
+                      Updating to match your edits…
+                    </p>
+                  ) : (
+                    <p className="text-[15px] leading-relaxed text-foreground">
+                      {writingDone ? (
+                        summary.customerMessage
+                      ) : (
+                        <Typewriter
+                          text={summary.customerMessage}
+                          onDone={() => setWritingDone(true)}
+                        />
+                      )}
+                    </p>
+                  )}
                 </div>
               )}
             </>
@@ -1272,9 +1346,10 @@ export default function Recorder({
                         onClick={() =>
                           setReviewStep(canSave ? "archive" : "send")
                         }
-                        className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-white font-semibold text-base shadow-sm hover:bg-brand-600 transition"
+                        disabled={refreshingMsg}
+                        className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-white font-semibold text-base shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
                       >
-                        👍 Looks good
+                        {refreshingMsg ? "Updating message…" : "👍 Looks good"}
                       </button>
                       <button
                         onClick={tweakSummary}
