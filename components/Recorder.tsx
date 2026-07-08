@@ -1218,6 +1218,10 @@ export default function Recorder({
                     maybeRefreshMessage(cleaned);
                   } else {
                     editSnapshotRef.current = JSON.stringify(summary);
+                    // They're already reading and editing the note, so skip
+                    // any remaining typewriter effect; after Done editing the
+                    // (possibly refreshed) message shows instantly.
+                    setWritingDone(true);
                     setEditing(true);
                   }
                 }}
@@ -1278,7 +1282,7 @@ export default function Recorder({
                       Updating to match your edits…
                     </p>
                   ) : (
-                    <p className="text-[15px] leading-relaxed text-foreground">
+                    <p className="tt-fade-in text-[15px] leading-relaxed text-foreground">
                       {writingDone ? (
                         summary.customerMessage
                       ) : (
