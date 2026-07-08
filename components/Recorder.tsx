@@ -21,17 +21,17 @@ type Phase =
   | "transcribing"
   | "transcribeError" // transcription failed on the server; audio kept for retry
   | "offlineSaved" // no connection; recording queued on-device to finish later
-  | "transcript" // Step 1: transcript shown
+  | "transcript" // escape hatch: fix the raw transcript, then redo the summary
   | "summarizing" // calling the AI
-  | "summarized" // Steps 2-4: review → save → send
+  | "summarized" // Review (Step 1) → Send (Step 2)
   | "confirmDelete";
 
-// Steps within the "summarized" phase: 2 = review, 3 = save, 4 = send.
-type ReviewStep = "confirm" | "archive" | "send";
+// Steps within the "summarized" phase: 1 = review, 2 = send.
+type ReviewStep = "confirm" | "send";
 
 type Attach = Attachment & { preview?: string };
 
-const STEP_LABELS = ["Your memo", "Review the note", "Save it", "Send to customer"];
+const STEP_LABELS = ["Review the note", "Send to customer"];
 
 function formatTime(s: number) {
   const m = Math.floor(s / 60);
@@ -157,7 +157,7 @@ export default function Recorder({
     "idle"
   );
   const [error, setError] = useState<string | null>(null);
-  const [returnPhase, setReturnPhase] = useState<Phase>("transcript");
+  const [returnPhase, setReturnPhase] = useState<Phase>("summarized");
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -326,6 +326,7 @@ export default function Recorder({
       );
       setPhase("idle");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const pauseRecording = useCallback(() => {
@@ -430,7 +431,8 @@ export default function Recorder({
     return (data as { text?: string }).text || "";
   }
 
-  // Transcribe a recording. If the network is down, keep the audio in an
+  // Transcribe a recording, then roll straight into the AI summary so the tech
+  // lands on the finished note. If the network is down, keep the audio in an
   // on-device queue and tell the tech we'll finish it when they're back online.
   async function runTranscription(blob: Blob, queueId?: string) {
     lastBlobRef.current = blob;
@@ -447,7 +449,7 @@ export default function Recorder({
         }
       }
       await refreshPending();
-      setPhase("transcript");
+      await summarizeText(text);
     } catch (err) {
       const isServer = (err as { server?: boolean })?.server === true;
       const offline =
@@ -496,14 +498,19 @@ export default function Recorder({
     runTranscription(lastBlobRef.current);
   }
 
-  async function handleSummarize() {
+  async function summarizeText(text: string) {
+    if (!text.trim()) {
+      setError("Didn't catch anything. Try recording again.");
+      setPhase("idle");
+      return;
+    }
     setError(null);
     setPhase("summarizing");
     try {
       const res = await fetch("/api/summarize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript, techName }),
+        body: JSON.stringify({ transcript: text, techName }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Summarization failed.");
@@ -517,10 +524,12 @@ export default function Recorder({
       setPhase("summarized");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Summarization failed.");
+      // Land on the fix screen so the tech can retry from the transcript.
       setPhase("transcript");
     }
   }
 
+  // Escape hatch from review: fix the raw transcript, then redo the summary.
   function tweakSummary() {
     setSummary(null);
     setWritingDone(false);
@@ -583,7 +592,12 @@ export default function Recorder({
     }
   }
 
-  async function handleArchive() {
+  // "Save & continue": archive the note, then move on to sending.
+  async function saveAndContinue() {
+    if (!canSave || archiveState === "saved") {
+      setReviewStep("send");
+      return;
+    }
     setArchiveState("saving");
     setError(null);
     const result = await saveNote({
@@ -600,10 +614,12 @@ export default function Recorder({
     if (result.error) {
       setError(result.error);
       setArchiveState("idle");
-    } else {
-      setNoteId(result.id ?? null);
-      setArchiveState("saved");
+      return;
     }
+    setNoteId(result.id ?? null);
+    setArchiveState("saved");
+    setReviewStep("send");
+    // Remember this customer for next time (fire-and-forget).
     if (customerName.trim()) {
       upsertCustomer({
         name: customerName,
@@ -679,30 +695,16 @@ export default function Recorder({
   const isRecording = phase === "recording";
   const isPaused = phase === "paused";
   const showButton =
-    phase === "idle" ||
-    phase === "recording" ||
-    phase === "paused" ||
-    phase === "transcribing";
+    phase === "idle" || phase === "recording" || phase === "paused";
 
   const statusText: Record<string, string> = {
     idle: "Tap to record your visit",
     recording: "Recording. Tap to pause, hold 2s to finish.",
     paused: "Paused. Tap to resume, hold 2s to finish.",
-    transcribing: "Transcribing…",
   };
 
   const stepNum =
-    phase === "transcript"
-      ? 1
-      : phase === "summarizing"
-        ? 2
-        : phase === "summarized"
-          ? reviewStep === "confirm"
-            ? 2
-            : reviewStep === "archive"
-              ? 3
-              : 4
-          : 0;
+    phase === "summarized" ? (reviewStep === "confirm" ? 1 : 2) : 0;
 
   return (
     <div className="flex flex-col items-center w-full max-w-xl mx-auto">
@@ -737,8 +739,7 @@ export default function Recorder({
             onPointerUp={onRecordPointerEnd}
             onPointerLeave={onRecordPointerEnd}
             onPointerCancel={onRecordPointerEnd}
-            disabled={phase === "transcribing"}
-            className="relative flex items-center justify-center w-44 h-44 rounded-full disabled:opacity-60 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-brand/30 touch-none select-none"
+            className="relative flex items-center justify-center w-44 h-44 rounded-full transition focus:outline-none focus-visible:ring-4 focus-visible:ring-brand/30 touch-none select-none"
             aria-label={
               isRecording
                 ? "Recording. Tap to pause, press and hold to end."
@@ -891,6 +892,19 @@ export default function Recorder({
         </div>
       )}
 
+      {/* One combined progress screen: transcribe, then summarize */}
+      {(phase === "transcribing" || phase === "summarizing") && (
+        <div className="mt-10 flex flex-col items-center gap-3 text-center">
+          <LogoMark size={64} className="tt-pulse" />
+          <p className="text-brand font-medium">
+            {phase === "transcribing" ? "Listening back…" : "Writing it up…"}
+          </p>
+          <p className="text-xs text-muted">
+            Hang tight, your note is on its way.
+          </p>
+        </div>
+      )}
+
       {/* Transcription failed, the recording is kept so it can be retried */}
       {phase === "transcribeError" && (
         <div className="mt-4 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm text-center">
@@ -962,27 +976,18 @@ export default function Recorder({
         </div>
       )}
 
-      {/* Transcript, editable while reviewing, read-only after summarizing */}
-      {(phase === "transcript" ||
-        phase === "summarizing" ||
-        phase === "summarized") && (
-        <div className="w-full">
+      {/* Escape hatch: fix the raw transcript, then redo the summary */}
+      {phase === "transcript" && (
+        <div className="mt-2 w-full">
           <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-2">
-            Transcript of your memo
+            What you said
           </label>
-          {phase === "transcript" ? (
-            <textarea
-              value={transcript}
-              onChange={(e) => setTranscript(e.target.value)}
-              rows={5}
-              className="w-full rounded-xl border border-border bg-surface p-4 text-foreground text-[15px] leading-relaxed shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
-            />
-          ) : (
-            <div className="w-full rounded-xl border border-border bg-surface p-4 text-foreground text-[15px] leading-relaxed shadow-sm whitespace-pre-wrap">
-              {transcript}
-            </div>
-          )}
-
+          <textarea
+            value={transcript}
+            onChange={(e) => setTranscript(e.target.value)}
+            rows={6}
+            className="w-full rounded-xl border border-border bg-surface p-4 text-foreground text-[15px] leading-relaxed shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
+          />
           {audioUrl && (
             <div className="mt-2">
               <audio src={audioUrl} controls className="w-full" />
@@ -991,166 +996,23 @@ export default function Recorder({
               </p>
             </div>
           )}
-
-          {phase === "transcript" && (
-            <div className="mt-3 rounded-xl border border-border bg-surface p-3 space-y-2">
-              <input
-                type="text"
-                list="tt-customers"
-                value={customerName}
-                onChange={(e) => onCustomerName(e.target.value)}
-                placeholder="Customer name"
-                className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-              />
-              <datalist id="tt-customers">
-                {uniqueNames.map((n) => (
-                  <option key={n} value={n} />
-                ))}
-              </datalist>
-
-              {nameMatches.length > 1 && (
-                <div className="rounded-lg bg-slate-50 p-2.5 text-xs">
-                  <p className="text-muted mb-1.5">
-                    A few customers named {customerName}. Which one?
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {nameMatches.map((c, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => pickMatch(c)}
-                        className="tt-pop rounded-md bg-surface px-2.5 py-1 font-medium text-foreground ring-1 ring-border hover:bg-white"
-                      >
-                        {c.email || c.phone || "no contact info"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <input
-                  type="email"
-                  inputMode="email"
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  value={customerEmail}
-                  onChange={(e) => setCustomerEmail(e.target.value)}
-                  placeholder="Email"
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-                />
-                <input
-                  type="tel"
-                  inputMode="tel"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="Phone"
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-                />
-              </div>
-              <p className="text-[11px] text-muted">
-                Saved to your customer list, so next time you just pick the name.
-              </p>
-            </div>
-          )}
-
-          {canSave && phase === "transcript" && (
-            <div className="mt-3">
-              <div className="flex items-center gap-2 mb-1.5">
-                <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
-                  📷 Add photo
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={addAttachment}
-                    className="hidden"
-                  />
-                </label>
-                <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
-                  📎 Add file
-                  <input
-                    type="file"
-                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
-                    onChange={addAttachment}
-                    className="hidden"
-                  />
-                </label>
-                {uploading && (
-                  <span className="text-xs text-brand">Uploading…</span>
-                )}
-              </div>
-              <p className="mb-2 text-[11px] text-muted">
-                Photos (model plate, damage, before/after) and files (receipt,
-                permit) attach to this visit. Tap one to view it.
-              </p>
-              {attachments.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {attachments.map((a) => (
-                    <div key={a.path} className="relative">
-                      <button
-                        type="button"
-                        onClick={() => viewAttachment(a)}
-                        aria-label={`View ${a.name}`}
-                        className="tt-pop block"
-                      >
-                        {a.preview ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={a.preview}
-                            alt={a.name}
-                            className="h-16 w-16 rounded-lg object-cover ring-1 ring-border"
-                          />
-                        ) : (
-                          <div className="flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-lg bg-slate-50 ring-1 ring-border">
-                            <span className="text-2xl">📄</span>
-                            <span className="max-w-full truncate px-1 text-[9px] text-muted">
-                              {a.name}
-                            </span>
-                          </div>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPendingDelete(a)}
-                        aria-label="Remove attachment"
-                        className="tt-pop absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs text-muted ring-1 ring-border shadow-sm hover:text-danger"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Step 1 actions */}
+          <p className="mt-2 text-xs text-muted">
+            Fix anything that was misheard, then redo the summary.
+          </p>
           <div className="mt-4 flex flex-wrap justify-center gap-4">
-            {phase === "transcript" && (
-              <>
-                <button
-                  onClick={() => handleSummarize()}
-                  disabled={!transcript.trim()}
-                  className="inline-flex items-center gap-2 rounded-xl bg-brand px-8 py-3.5 text-white font-semibold text-base shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
-                >
-                  ✨ Summarize with AI
-                </button>
-                <button
-                  onClick={() => askDelete("transcript")}
-                  className="inline-flex items-center gap-2 rounded-xl bg-surface px-8 py-3.5 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
-                >
-                  🗑 Delete
-                </button>
-              </>
-            )}
-
-            {phase === "summarizing" && (
-              <div className="inline-flex items-center gap-2 text-brand text-sm font-medium">
-                <LogoMark size={20} className="tt-pulse" />
-                Writing it up…
-              </div>
-            )}
+            <button
+              onClick={() => summarizeText(transcript)}
+              disabled={!transcript.trim()}
+              className="inline-flex items-center gap-2 rounded-xl bg-brand px-8 py-3.5 text-white font-semibold text-base shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
+            >
+              ✨ Redo the summary
+            </button>
+            <button
+              onClick={() => askDelete("transcript")}
+              className="inline-flex items-center gap-2 rounded-xl bg-surface px-8 py-3.5 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
+            >
+              🗑 Delete
+            </button>
           </div>
         </div>
       )}
@@ -1180,9 +1042,9 @@ export default function Recorder({
         </div>
       )}
 
-      {/* AI summary + guided review (Steps 2-4) */}
+      {/* Review (Step 1) and Send (Step 2) */}
       {phase === "summarized" && summary && (
-        <div className="mt-4 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm">
+        <div className="mt-2 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm">
           <div className="flex items-center justify-between gap-2 mb-3">
             <span className="text-xs font-semibold uppercase tracking-wide text-accent-600">
               AI Summary
@@ -1219,36 +1081,39 @@ export default function Recorder({
                 {summary.jobTitle}
               </h3>
 
-          <SummarySection title="Work done" items={summary.workDone} />
-          <SummarySection
-            title="Parts used"
-            items={summary.partsAndMaterials}
-            accent
-          />
+              <SummarySection title="Work done" items={summary.workDone} />
+              <SummarySection
+                title="Parts used"
+                items={summary.partsAndMaterials}
+                accent
+              />
 
-          {/* Customer requests: always shown; "None" when empty */}
-          <div className="mt-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-brand mb-1.5">
-              Customer requests
-            </div>
-            {summary.customerRequests.length ? (
-              <ul className="space-y-1">
-                {summary.customerRequests.map((item, i) => (
-                  <li key={i} className="flex gap-2 text-[15px] text-foreground">
-                    <span className="text-brand">•</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-[15px] text-muted">None</p>
-            )}
-          </div>
+              {/* Customer requests: always shown; "None" when empty */}
+              <div className="mt-4">
+                <div className="text-xs font-semibold uppercase tracking-wide text-brand mb-1.5">
+                  Customer requests
+                </div>
+                {summary.customerRequests.length ? (
+                  <ul className="space-y-1">
+                    {summary.customerRequests.map((item, i) => (
+                      <li
+                        key={i}
+                        className="flex gap-2 text-[15px] text-foreground"
+                      >
+                        <span className="text-brand">•</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[15px] text-muted">None</p>
+                )}
+              </div>
 
-          <SummarySection
-            title="Next steps & things to buy"
-            items={summary.nextSteps}
-          />
+              <SummarySection
+                title="Next steps & things to buy"
+                items={summary.nextSteps}
+              />
 
               {(summary.customerMessage || refreshingMsg) && (
                 <div className="mt-4 rounded-xl bg-brand-50 p-4">
@@ -1279,89 +1144,202 @@ export default function Recorder({
 
           {writingDone && !editing && (
             <div className="tt-fade-in">
-              {/* Step 2: review, clarify, confirm */}
+              {/* Step 1: review everything on one screen */}
               {reviewStep === "confirm" && (
                 <>
+                  {/* Customer */}
+                  <div className="mt-5 border-t border-border pt-5">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted mb-2">
+                      Customer
+                    </div>
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        list="tt-customers"
+                        value={customerName}
+                        onChange={(e) => onCustomerName(e.target.value)}
+                        placeholder="Customer name"
+                        className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                      />
+                      <datalist id="tt-customers">
+                        {uniqueNames.map((n) => (
+                          <option key={n} value={n} />
+                        ))}
+                      </datalist>
+
+                      {nameMatches.length > 1 && (
+                        <div className="rounded-lg bg-slate-50 p-2.5 text-xs">
+                          <p className="text-muted mb-1.5">
+                            A few customers named {customerName}. Which one?
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {nameMatches.map((c, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => pickMatch(c)}
+                                className="tt-pop rounded-md bg-surface px-2.5 py-1 font-medium text-foreground ring-1 ring-border hover:bg-white"
+                              >
+                                {c.email || c.phone || "no contact info"}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input
+                          type="email"
+                          inputMode="email"
+                          autoCapitalize="off"
+                          autoCorrect="off"
+                          value={customerEmail}
+                          onChange={(e) => setCustomerEmail(e.target.value)}
+                          placeholder="Email"
+                          className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                        />
+                        <input
+                          type="tel"
+                          inputMode="tel"
+                          value={customerPhone}
+                          onChange={(e) => setCustomerPhone(e.target.value)}
+                          placeholder="Phone"
+                          className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                        />
+                      </div>
+                      <p className="text-[11px] text-muted">
+                        Saved to your customer list, so next time you just pick
+                        the name.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Photos & files */}
+                  {canSave && (
+                    <div className="mt-5 border-t border-border pt-5">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted mb-2">
+                        Photos &amp; files
+                      </div>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
+                          📷 Add photo
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={addAttachment}
+                            className="hidden"
+                          />
+                        </label>
+                        <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
+                          📎 Add file
+                          <input
+                            type="file"
+                            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                            onChange={addAttachment}
+                            className="hidden"
+                          />
+                        </label>
+                        {uploading && (
+                          <span className="text-xs text-brand">Uploading…</span>
+                        )}
+                      </div>
+                      <p className="mb-2 text-[11px] text-muted">
+                        Photos (model plate, damage, before/after) and files
+                        (receipt, permit) attach to this visit. Tap one to view
+                        it.
+                      </p>
+                      {attachments.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {attachments.map((a) => (
+                            <div key={a.path} className="relative">
+                              <button
+                                type="button"
+                                onClick={() => viewAttachment(a)}
+                                aria-label={`View ${a.name}`}
+                                className="tt-pop block"
+                              >
+                                {a.preview ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={a.preview}
+                                    alt={a.name}
+                                    className="h-16 w-16 rounded-lg object-cover ring-1 ring-border"
+                                  />
+                                ) : (
+                                  <div className="flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-lg bg-slate-50 ring-1 ring-border">
+                                    <span className="text-2xl">📄</span>
+                                    <span className="max-w-full truncate px-1 text-[9px] text-muted">
+                                      {a.name}
+                                    </span>
+                                  </div>
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setPendingDelete(a)}
+                                aria-label="Remove attachment"
+                                className="tt-pop absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs text-muted ring-1 ring-border shadow-sm hover:text-danger"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* The raw memo, one tap away for a trust check */}
+                  <details className="mt-5 border-t border-border pt-4">
+                    <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-muted hover:text-foreground transition-colors">
+                      What you said
+                    </summary>
+                    <div className="mt-2 rounded-xl border border-border bg-slate-50 p-3 text-[14px] leading-relaxed text-foreground whitespace-pre-wrap">
+                      {transcript}
+                    </div>
+                    {audioUrl && (
+                      <audio src={audioUrl} controls className="mt-2 w-full" />
+                    )}
+                    <button
+                      onClick={tweakSummary}
+                      className="mt-2 text-xs font-medium text-brand hover:underline"
+                    >
+                      ✏️ Fix the transcript &amp; redo
+                    </button>
+                  </details>
+
+                  {/* Step 1 actions */}
                   <div className="mt-5 border-t border-border pt-5 text-center">
-                    <p className="font-medium text-foreground">Look right?</p>
-                    <div className="mt-3 flex flex-wrap justify-center gap-3">
+                    <p className="font-medium text-foreground mb-3">
+                      Look right?
+                    </p>
+                    <div className="flex flex-wrap justify-center gap-3">
                       <button
-                        onClick={() =>
-                          setReviewStep(canSave ? "archive" : "send")
-                        }
-                        disabled={refreshingMsg}
+                        onClick={saveAndContinue}
+                        disabled={refreshingMsg || archiveState === "saving"}
                         className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-white font-semibold text-base shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
                       >
-                        {refreshingMsg ? "Updating message…" : "👍 Looks good"}
+                        {archiveState === "saving"
+                          ? "Saving…"
+                          : refreshingMsg
+                            ? "Updating message…"
+                            : canSave
+                              ? "💾 Save & continue"
+                              : "Continue →"}
                       </button>
                       <button
-                        onClick={tweakSummary}
+                        onClick={() => askDelete("summarized")}
                         className="inline-flex items-center gap-2 rounded-xl bg-surface px-6 py-3 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
                       >
-                        ✏️ Tweak it
+                        🗑 Delete
                       </button>
                     </div>
                   </div>
                 </>
               )}
 
-              {/* Step 3: save, then choose to send or finish */}
-              {reviewStep === "archive" && (
-                <div className="mt-5 border-t border-border pt-5 text-center">
-                  {archiveState !== "saved" ? (
-                    <>
-                      <p className="font-medium text-foreground mb-3">
-                        Save this to your archive?
-                      </p>
-                      <div className="flex flex-wrap justify-center gap-3">
-                        <button
-                          onClick={handleArchive}
-                          disabled={archiveState === "saving"}
-                          className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-white font-semibold text-base shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
-                        >
-                          {archiveState === "saving"
-                            ? "Saving…"
-                            : "💾 Archive it"}
-                        </button>
-                        <button
-                          onClick={() => setReviewStep("send")}
-                          className="inline-flex items-center gap-2 rounded-xl bg-surface px-6 py-3 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
-                        >
-                          Skip
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-sm font-medium text-success mb-1">
-                        ✓ Saved to your archive
-                      </p>
-                      <p className="font-medium text-foreground mb-3">
-                        Send it to the customer now?
-                      </p>
-                      <div className="flex flex-wrap justify-center gap-3">
-                        <button
-                          onClick={() => setReviewStep("send")}
-                          className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-white font-semibold text-base shadow-sm hover:bg-brand-600 transition"
-                        >
-                          ✉️ Send to customer
-                        </button>
-                        <button
-                          onClick={() => {
-                            resetAll();
-                            setPhase("idle");
-                          }}
-                          className="inline-flex items-center gap-2 rounded-xl bg-surface px-6 py-3 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
-                        >
-                          Done for now
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {/* Step 4: send to customer */}
+              {/* Step 2: send to customer */}
               {reviewStep === "send" && (
                 <div className="tt-fade-in">
                   {archiveState === "saved" && canSave && (
@@ -1384,7 +1362,7 @@ export default function Recorder({
                       }}
                       className="tt-pop text-sm font-medium text-brand hover:underline"
                     >
-                      ＋ Start a new note
+                      ✓ Done, start fresh
                     </button>
                   </div>
                 </div>
