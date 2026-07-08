@@ -647,8 +647,8 @@ export default function Recorder({
 
   const statusText: Record<string, string> = {
     idle: "Tap to record your visit",
-    recording: "Recording. Tap to pause, hold to end.",
-    paused: "Paused. Tap to resume, hold to end.",
+    recording: "Recording. Tap to pause, hold 2s to finish.",
+    paused: "Paused. Tap to resume, hold 2s to finish.",
     transcribing: "Transcribing…",
   };
 
@@ -751,11 +751,19 @@ export default function Recorder({
                   {formatTime(elapsed)}
                 </span>
                 <div className="text-xs text-muted mt-0.5">
-                  {holding ? "Keep holding to end…" : statusText[phase]}
+                  {holding ? "Keep holding to finish…" : statusText[phase]}
                 </div>
               </>
             ) : (
-              <span className="text-muted text-sm">{statusText[phase]}</span>
+              <>
+                <span className="text-muted text-sm">{statusText[phase]}</span>
+                {phase === "idle" && (
+                  <p className="mt-1.5 text-xs text-muted">
+                    Tap to pause anytime. Hold the button for 2 seconds to
+                    finish.
+                  </p>
+                )}
+              </>
             )}
           </div>
 
@@ -1483,7 +1491,9 @@ function cleanSummary(s: JobSummary): JobSummary {
   };
 }
 
-/** Tap-to-fix editor for the whole summary: title, every bullet, the message. */
+/** Tap-to-fix editor for the whole summary: title, every bullet, the message.
+ *  Each list section also takes spoken detail: tap the mic, talk, and the AI
+ *  turns what you said into new bullets for that section. */
 function SummaryEditor({
   summary,
   onChange,
@@ -1500,8 +1510,123 @@ function SummaryEditor({
   const setList = (key: ListKey, list: string[]) =>
     onChange({ ...summary, [key]: list });
 
+  // Latest summary for use inside recorder callbacks (avoids stale closures).
+  const summaryRef = useRef(summary);
+  summaryRef.current = summary;
+
+  const [recordingKey, setRecordingKey] = useState<ListKey | null>(null);
+  const [busyKey, setBusyKey] = useState<ListKey | null>(null);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const recRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const activeKeyRef = useRef<ListKey | null>(null);
+
+  useEffect(() => {
+    return () => {
+      try {
+        if (recRef.current && recRef.current.state !== "inactive")
+          recRef.current.stop();
+      } catch {
+        // ignore
+      }
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
+
+  async function processVoice(key: ListKey, blob: Blob) {
+    try {
+      const ext = blob.type.includes("mp4") ? "mp4" : "webm";
+      const fd = new FormData();
+      fd.append("audio", blob, `add.${ext}`);
+      const tr = await fetch("/api/transcribe", { method: "POST", body: fd });
+      const td = await tr.json();
+      if (!tr.ok) throw new Error(td.error || "Could not transcribe.");
+      const said = (td.text || "").trim();
+      if (!said) {
+        setVoiceError("Didn't catch that. Try again.");
+        return;
+      }
+      const label = fields.find(([k]) => k === key)?.[1] || key;
+      const ex = await fetch("/api/extract-bullets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          section: label,
+          existing: summaryRef.current[key],
+          text: said,
+        }),
+      });
+      const ed = await ex.json();
+      const bullets: string[] = Array.isArray(ed.bullets)
+        ? ed.bullets.filter(
+            (b: unknown): b is string =>
+              typeof b === "string" && b.trim().length > 0
+          )
+        : [];
+      const toAdd = bullets.length ? bullets.map((b) => b.trim()) : [said];
+      const cur = summaryRef.current;
+      onChange({ ...cur, [key]: [...cur[key], ...toAdd] });
+    } catch (e) {
+      setVoiceError(
+        e instanceof Error ? e.message : "Something went wrong adding that."
+      );
+    } finally {
+      setBusyKey(null);
+      activeKeyRef.current = null;
+    }
+  }
+
+  async function startVoice(key: ListKey) {
+    setVoiceError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const rec = new MediaRecorder(stream);
+      chunksRef.current = [];
+      activeKeyRef.current = key;
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      rec.onstop = async () => {
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunksRef.current, {
+          type: rec.mimeType || "audio/webm",
+        });
+        await processVoice(activeKeyRef.current as ListKey, blob);
+      };
+      rec.start();
+      recRef.current = rec;
+      setRecordingKey(key);
+    } catch {
+      setVoiceError(
+        "Couldn't reach the microphone. Check permissions and try again."
+      );
+    }
+  }
+
+  function stopVoice(key: ListKey) {
+    const rec = recRef.current;
+    if (rec && rec.state !== "inactive") {
+      setRecordingKey(null);
+      setBusyKey(key);
+      rec.stop();
+    }
+  }
+
+  function toggleVoice(key: ListKey) {
+    if (recordingKey === key) stopVoice(key);
+    else if (recordingKey === null && busyKey === null) startVoice(key);
+  }
+
+  const anyVoiceActive = recordingKey !== null || busyKey !== null;
+
   return (
     <div className="mt-2 space-y-4">
+      <p className="text-xs text-muted">
+        Type to fix anything, or tap 🎙 to add details by voice.
+      </p>
+
       <div>
         <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
           Title
@@ -1548,16 +1673,44 @@ function SummaryEditor({
                 </button>
               </div>
             ))}
-            <button
-              type="button"
-              onClick={() => setList(key, [...summary[key], ""])}
-              className="tt-pop text-xs font-medium text-brand hover:underline"
-            >
-              + Add line
-            </button>
+            <div className="flex flex-wrap items-center gap-3 pt-0.5">
+              <button
+                type="button"
+                onClick={() => setList(key, [...summary[key], ""])}
+                className="tt-pop text-xs font-medium text-brand hover:underline"
+              >
+                + Add line
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleVoice(key)}
+                disabled={busyKey === key || (anyVoiceActive && recordingKey !== key)}
+                className={`tt-pop inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 transition ${
+                  recordingKey === key
+                    ? "bg-danger text-white ring-danger"
+                    : "bg-surface text-brand ring-border hover:bg-brand-50 disabled:opacity-50"
+                }`}
+              >
+                {recordingKey === key ? (
+                  <>
+                    <span className="inline-block h-2 w-2 rounded-full bg-white tt-pulse" />
+                    Stop &amp; add
+                  </>
+                ) : busyKey === key ? (
+                  "Adding…"
+                ) : (
+                  "🎙 Add by voice"
+                )}
+              </button>
+              {recordingKey === key && (
+                <span className="text-xs text-danger">Listening…</span>
+              )}
+            </div>
           </div>
         </div>
       ))}
+
+      {voiceError && <p className="text-xs text-danger">{voiceError}</p>}
 
       <div>
         <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
