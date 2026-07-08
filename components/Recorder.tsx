@@ -1211,7 +1211,11 @@ export default function Recorder({
           </div>
 
           {editing ? (
-            <SummaryEditor summary={summary} onChange={setSummary} />
+            <SummaryEditor
+              summary={summary}
+              onChange={setSummary}
+              techName={techName}
+            />
           ) : (
             <>
               <h3 className="text-lg font-semibold text-foreground tt-fade-in">
@@ -1654,14 +1658,16 @@ function cleanSummary(s: JobSummary): JobSummary {
 }
 
 /** Tap-to-fix editor for the whole summary: title, every bullet, the message.
- *  Each list section also takes spoken detail: tap the mic, talk, and the AI
- *  turns what you said into new bullets for that section. */
+ *  One "add what's missing" box (typed or spoken) covers every section: the
+ *  AI files each new fact into the right one. */
 function SummaryEditor({
   summary,
   onChange,
+  techName = "",
 }: {
   summary: JobSummary;
   onChange: (s: JobSummary) => void;
+  techName?: string;
 }) {
   const fields: [ListKey, string][] = [
     ["workDone", "Work done"],
@@ -1676,13 +1682,12 @@ function SummaryEditor({
   const summaryRef = useRef(summary);
   summaryRef.current = summary;
 
-  const [recordingKey, setRecordingKey] = useState<ListKey | null>(null);
-  const [busyKey, setBusyKey] = useState<ListKey | null>(null);
-  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [addText, setAddText] = useState("");
+  const [addRec, setAddRec] = useState<"idle" | "recording" | "busy">("idle");
+  const [addError, setAddError] = useState<string | null>(null);
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
-  const activeKeyRef = useRef<ListKey | null>(null);
 
   useEffect(() => {
     return () => {
@@ -1696,7 +1701,36 @@ function SummaryEditor({
     };
   }, []);
 
-  async function processVoice(key: ListKey, blob: Blob) {
+  // Send whatever was typed or said through the merge endpoint, which files
+  // each fact into the right section and refreshes the customer message.
+  async function mergeIn(text: string) {
+    setAddRec("busy");
+    setAddError(null);
+    try {
+      const res = await fetch("/api/merge-details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          summary: summaryRef.current,
+          techName,
+          text,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.summary)
+        throw new Error(data.error || "Couldn't add that to the note.");
+      onChange(data.summary as JobSummary);
+      setAddText("");
+    } catch (e) {
+      setAddError(
+        e instanceof Error ? e.message : "Something went wrong adding that."
+      );
+    } finally {
+      setAddRec("idle");
+    }
+  }
+
+  async function processVoice(blob: Blob) {
     try {
       const ext = blob.type.includes("mp4") ? "mp4" : "webm";
       const fd = new FormData();
@@ -1706,47 +1740,26 @@ function SummaryEditor({
       if (!tr.ok) throw new Error(td.error || "Could not transcribe.");
       const said = (td.text || "").trim();
       if (!said) {
-        setVoiceError("Didn't catch that. Try again.");
+        setAddError("Didn't catch that. Try again.");
+        setAddRec("idle");
         return;
       }
-      const label = fields.find(([k]) => k === key)?.[1] || key;
-      const ex = await fetch("/api/extract-bullets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          section: label,
-          existing: summaryRef.current[key],
-          text: said,
-        }),
-      });
-      const ed = await ex.json();
-      const bullets: string[] = Array.isArray(ed.bullets)
-        ? ed.bullets.filter(
-            (b: unknown): b is string =>
-              typeof b === "string" && b.trim().length > 0
-          )
-        : [];
-      const toAdd = bullets.length ? bullets.map((b) => b.trim()) : [said];
-      const cur = summaryRef.current;
-      onChange({ ...cur, [key]: [...cur[key], ...toAdd] });
+      await mergeIn(said);
     } catch (e) {
-      setVoiceError(
+      setAddError(
         e instanceof Error ? e.message : "Something went wrong adding that."
       );
-    } finally {
-      setBusyKey(null);
-      activeKeyRef.current = null;
+      setAddRec("idle");
     }
   }
 
-  async function startVoice(key: ListKey) {
-    setVoiceError(null);
+  async function startVoice() {
+    setAddError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       const rec = new MediaRecorder(stream);
       chunksRef.current = [];
-      activeKeyRef.current = key;
       rec.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
@@ -1755,38 +1768,31 @@ function SummaryEditor({
         const blob = new Blob(chunksRef.current, {
           type: rec.mimeType || "audio/webm",
         });
-        await processVoice(activeKeyRef.current as ListKey, blob);
+        await processVoice(blob);
       };
       rec.start();
       recRef.current = rec;
-      setRecordingKey(key);
+      setAddRec("recording");
     } catch {
-      setVoiceError(
+      setAddError(
         "Couldn't reach the microphone. Check permissions and try again."
       );
     }
   }
 
-  function stopVoice(key: ListKey) {
+  function stopVoice() {
     const rec = recRef.current;
     if (rec && rec.state !== "inactive") {
-      setRecordingKey(null);
-      setBusyKey(key);
+      setAddRec("busy");
       rec.stop();
     }
   }
 
-  function toggleVoice(key: ListKey) {
-    if (recordingKey === key) stopVoice(key);
-    else if (recordingKey === null && busyKey === null) startVoice(key);
-  }
-
-  const anyVoiceActive = recordingKey !== null || busyKey !== null;
-
   return (
     <div className="mt-2 space-y-4">
       <p className="text-xs text-muted">
-        ✏️ Type to fix anything, or tap 🎙 to add details by voice.
+        ✏️ Tap any line to fix it, ✕ to remove it. Add anything new in the box
+        below.
       </p>
 
       <div>
@@ -1835,44 +1841,69 @@ function SummaryEditor({
                 </button>
               </div>
             ))}
-            <div className="flex flex-wrap items-center gap-3 pt-0.5">
-              <button
-                type="button"
-                onClick={() => setList(key, [...summary[key], ""])}
-                className="tt-pop text-xs font-medium text-brand hover:underline"
-              >
-                ✏️ Add by typing
-              </button>
-              <button
-                type="button"
-                onClick={() => toggleVoice(key)}
-                disabled={busyKey === key || (anyVoiceActive && recordingKey !== key)}
-                className={`tt-pop inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 transition ${
-                  recordingKey === key
-                    ? "bg-danger text-white ring-danger"
-                    : "bg-surface text-brand ring-border hover:bg-brand-50 disabled:opacity-50"
-                }`}
-              >
-                {recordingKey === key ? (
-                  <>
-                    <span className="inline-block h-2 w-2 rounded-full bg-white tt-pulse" />
-                    Stop &amp; add
-                  </>
-                ) : busyKey === key ? (
-                  "Adding…"
-                ) : (
-                  "🎙 Add by voice"
-                )}
-              </button>
-              {recordingKey === key && (
-                <span className="text-xs text-danger">Listening…</span>
-              )}
-            </div>
           </div>
         </div>
       ))}
 
-      {voiceError && <p className="text-xs text-danger">{voiceError}</p>}
+      {/* One box adds it all: the AI files each fact in the right section */}
+      <div className="rounded-xl border border-dashed border-brand/40 bg-brand-50/50 p-3">
+        <p className="text-sm font-semibold text-foreground">
+          Add what&apos;s missing
+        </p>
+        <p className="mt-0.5 text-[11px] text-muted">
+          Say or type it in one go. For a complete note, cover: work done,
+          parts used, customer requests, and next steps or things to buy. We
+          file each in the right section.
+        </p>
+        <div className="mt-2 flex gap-2">
+          <input
+            value={addText}
+            onChange={(e) => setAddText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && addText.trim() && addRec === "idle")
+                mergeIn(addText.trim());
+            }}
+            placeholder="Type what's missing…"
+            disabled={addRec !== "idle"}
+            className="flex-1 min-w-0 rounded-lg border border-border bg-surface px-3 py-2 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:opacity-60"
+          />
+          <button
+            type="button"
+            onClick={() => addText.trim() && mergeIn(addText.trim())}
+            disabled={!addText.trim() || addRec !== "idle"}
+            className="tt-pop shrink-0 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
+          >
+            Add
+          </button>
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={addRec === "recording" ? stopVoice : startVoice}
+            disabled={addRec === "busy"}
+            className={`tt-pop inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition ${
+              addRec === "recording"
+                ? "bg-danger text-white ring-danger"
+                : "bg-surface text-brand ring-border hover:bg-white disabled:opacity-60"
+            }`}
+          >
+            {addRec === "recording" ? (
+              <>
+                <span className="inline-block h-2 w-2 rounded-full bg-white tt-pulse" />
+                Stop &amp; add
+              </>
+            ) : addRec === "busy" ? (
+              "Adding it in…"
+            ) : (
+              "🎙 Or say it instead"
+            )}
+          </button>
+          {addRec === "recording" && (
+            <span className="text-xs text-danger">Listening…</span>
+          )}
+        </div>
+        {addError && <p className="mt-1.5 text-xs text-danger">{addError}</p>}
+      </div>
 
       <div>
         <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
