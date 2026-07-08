@@ -38,6 +38,43 @@ export async function saveNote(input: {
   return { id: data.id };
 }
 
+/** Update an already-saved note in place, used when the tech goes back from
+ *  the send step and changes the note, so edits never create a duplicate. */
+export async function updateNote(
+  id: string,
+  input: {
+    transcript: string;
+    summary: JobSummary | null;
+    customerEmail?: string;
+    customerName?: string;
+    attachments?: Attachment[];
+  }
+): Promise<SaveResult> {
+  if (!input.transcript?.trim()) return { error: "Nothing to save yet." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "You need to be signed in to save." };
+
+  const { error } = await supabase
+    .from("voice_notes")
+    .update({
+      job_title: input.summary?.jobTitle ?? null,
+      customer_name: input.customerName?.trim() || null,
+      transcript: input.transcript.trim(),
+      summary: input.summary,
+      customer_email: input.customerEmail || null,
+      attachments: input.attachments?.length ? input.attachments : null,
+    })
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (error) return { error: error.message };
+  return { id };
+}
+
 /** Attach the AI summary to an already-saved note (Save happens before Summarize). */
 export async function updateNoteSummary(
   id: string,

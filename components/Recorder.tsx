@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LogoMark } from "./Logo";
 import SendToCustomer from "./SendToCustomer";
-import { saveNote } from "@/lib/supabase/notes";
+import { saveNote, updateNote } from "@/lib/supabase/notes";
 import { upsertCustomer } from "@/lib/supabase/customers";
 import { createClient } from "@/lib/supabase/client";
 import type { JobSummary, Customer, Attachment } from "@/lib/types";
@@ -150,7 +150,7 @@ export default function Recorder({
   const [elapsed, setElapsed] = useState(0);
   const [transcript, setTranscript] = useState("");
   const [summary, setSummary] = useState<JobSummary | null>(null);
-  const [, setNoteId] = useState<string | null>(null);
+  const [noteId, setNoteId] = useState<string | null>(null);
   const [writingDone, setWritingDone] = useState(false);
   const [reviewStep, setReviewStep] = useState<ReviewStep>("confirm");
   const [archiveState, setArchiveState] = useState<"idle" | "saving" | "saved">(
@@ -174,6 +174,10 @@ export default function Recorder({
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
+  // "Forgot something?" voice additions on the review screen.
+  const [detailRec, setDetailRec] = useState<"idle" | "recording" | "busy">(
+    "idle"
+  );
   const visitIdRef = useRef<string>("");
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -187,6 +191,14 @@ export default function Recorder({
   const phaseRef = useRef<Phase>("idle");
   // Snapshot of the summary when editing starts, to detect what changed.
   const editSnapshotRef = useRef<string>("");
+  // Detail-voice recorder (separate from the main visit recorder).
+  const detailRecRef = useRef<MediaRecorder | null>(null);
+  const detailChunksRef = useRef<Blob[]>([]);
+  const detailStreamRef = useRef<MediaStream | null>(null);
+  const detailCancelledRef = useRef(false);
+  // Latest summary for detail-voice callbacks that outlive a render.
+  const summaryLiveRef = useRef<JobSummary | null>(null);
+  summaryLiveRef.current = summary;
 
   const stopTimer = () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -210,6 +222,16 @@ export default function Recorder({
     setEndConfirm(false);
     setEditing(false);
     setRefreshingMsg(false);
+    // Cancel any in-flight "forgot something" voice addition.
+    detailCancelledRef.current = true;
+    try {
+      if (detailRecRef.current && detailRecRef.current.state !== "inactive")
+        detailRecRef.current.stop();
+    } catch {
+      // ignore
+    }
+    detailStreamRef.current?.getTracks().forEach((t) => t.stop());
+    setDetailRec("idle");
     if (audioUrlRef.current) {
       URL.revokeObjectURL(audioUrlRef.current);
       audioUrlRef.current = null;
@@ -530,11 +552,84 @@ export default function Recorder({
   }
 
   // Escape hatch from review: fix the raw transcript, then redo the summary.
+  // The current summary is kept so "Back to the note" needs no new AI call.
   function tweakSummary() {
-    setSummary(null);
-    setWritingDone(false);
-    setReviewStep("confirm");
     setPhase("transcript");
+  }
+
+  // "Forgot something?": speak an addition on the review screen; the AI files
+  // it into the right sections and refreshes the customer message.
+  async function processDetail(blob: Blob) {
+    try {
+      if (detailCancelledRef.current) return;
+      const ext = blob.type.includes("mp4") ? "mp4" : "webm";
+      const fd = new FormData();
+      fd.append("audio", blob, `add.${ext}`);
+      const tr = await fetch("/api/transcribe", { method: "POST", body: fd });
+      const td = await tr.json();
+      if (!tr.ok) throw new Error(td.error || "Could not transcribe.");
+      const said = (td.text || "").trim();
+      if (!said) {
+        setError("Didn't catch that. Try again.");
+        return;
+      }
+      const res = await fetch("/api/merge-details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          summary: summaryLiveRef.current,
+          techName,
+          text: said,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.summary)
+        throw new Error(data.error || "Couldn't add that to the note.");
+      if (detailCancelledRef.current) return;
+      setSummary(data.summary as JobSummary);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Couldn't add that to the note."
+      );
+    } finally {
+      setDetailRec("idle");
+    }
+  }
+
+  async function startDetailVoice() {
+    setError(null);
+    detailCancelledRef.current = false;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      detailStreamRef.current = stream;
+      const rec = new MediaRecorder(stream);
+      detailChunksRef.current = [];
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) detailChunksRef.current.push(e.data);
+      };
+      rec.onstop = async () => {
+        detailStreamRef.current?.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(detailChunksRef.current, {
+          type: rec.mimeType || "audio/webm",
+        });
+        await processDetail(blob);
+      };
+      rec.start();
+      detailRecRef.current = rec;
+      setDetailRec("recording");
+    } catch {
+      setError(
+        "Couldn't reach the microphone. Check permissions and try again."
+      );
+    }
+  }
+
+  function stopDetailVoice() {
+    const rec = detailRecRef.current;
+    if (rec && rec.state !== "inactive") {
+      setDetailRec("busy");
+      rec.stop();
+    }
   }
 
   // After "Done editing": if the sections changed, rewrite the customer
@@ -592,15 +687,16 @@ export default function Recorder({
     }
   }
 
-  // "Save & continue": archive the note, then move on to sending.
+  // "Save & continue": archive the note, then move on to sending. Coming back
+  // from the send step and continuing again updates the same note in place.
   async function saveAndContinue() {
-    if (!canSave || archiveState === "saved") {
+    if (!canSave) {
       setReviewStep("send");
       return;
     }
     setArchiveState("saving");
     setError(null);
-    const result = await saveNote({
+    const payload = {
       transcript,
       summary,
       customerName,
@@ -610,13 +706,16 @@ export default function Recorder({
         name,
         type,
       })),
-    });
+    };
+    const result = noteId
+      ? await updateNote(noteId, payload)
+      : await saveNote(payload);
     if (result.error) {
       setError(result.error);
-      setArchiveState("idle");
+      setArchiveState(noteId ? "saved" : "idle");
       return;
     }
-    setNoteId(result.id ?? null);
+    setNoteId(result.id ?? noteId);
     setArchiveState("saved");
     setReviewStep("send");
     // Remember this customer for next time (fire-and-forget).
@@ -1013,6 +1112,14 @@ export default function Recorder({
             >
               ✨ Redo the summary
             </button>
+            {summary && (
+              <button
+                onClick={() => setPhase("summarized")}
+                className="inline-flex items-center gap-2 rounded-xl bg-surface px-8 py-3.5 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
+              >
+                ← Back to the note
+              </button>
+            )}
             <button
               onClick={() => askDelete("transcript")}
               className="inline-flex items-center gap-2 rounded-xl bg-surface px-8 py-3.5 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
@@ -1153,6 +1260,39 @@ export default function Recorder({
               {/* Step 1: review everything on one screen */}
               {reviewStep === "confirm" && (
                 <>
+                  {/* Forgot something? Say it and it gets filed into the note. */}
+                  <div className="mt-4 flex flex-col items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={
+                        detailRec === "recording"
+                          ? stopDetailVoice
+                          : startDetailVoice
+                      }
+                      disabled={detailRec === "busy"}
+                      className={`tt-pop inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium ring-1 transition ${
+                        detailRec === "recording"
+                          ? "bg-danger text-white ring-danger"
+                          : "bg-surface text-brand ring-border hover:bg-brand-50 disabled:opacity-60"
+                      }`}
+                    >
+                      {detailRec === "recording" ? (
+                        <>
+                          <span className="inline-block h-2 w-2 rounded-full bg-white tt-pulse" />
+                          Stop &amp; add it
+                        </>
+                      ) : detailRec === "busy" ? (
+                        "Adding it in…"
+                      ) : (
+                        "🎙 Forgot something? Add it by voice"
+                      )}
+                    </button>
+                    <p className="text-[11px] text-muted">
+                      Talk and we file it in the right section. Or tap ✏️ Edit
+                      to type.
+                    </p>
+                  </div>
+
                   {/* Customer */}
                   <div className="mt-5 border-t border-border pt-5">
                     <div className="text-xs font-semibold uppercase tracking-wide text-muted mb-2">
@@ -1323,7 +1463,11 @@ export default function Recorder({
                     <div className="flex flex-wrap justify-center gap-3">
                       <button
                         onClick={saveAndContinue}
-                        disabled={refreshingMsg || archiveState === "saving"}
+                        disabled={
+                          refreshingMsg ||
+                          archiveState === "saving" ||
+                          detailRec !== "idle"
+                        }
                         className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-white font-semibold text-base shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
                       >
                         {archiveState === "saving"
@@ -1331,7 +1475,9 @@ export default function Recorder({
                           : refreshingMsg
                             ? "Updating message…"
                             : canSave
-                              ? "💾 Save & continue"
+                              ? noteId
+                                ? "💾 Update & continue"
+                                : "💾 Save & continue"
                               : "Continue →"}
                       </button>
                       <button
@@ -1348,8 +1494,16 @@ export default function Recorder({
               {/* Step 2: send to customer */}
               {reviewStep === "send" && (
                 <div className="tt-fade-in">
+                  <div className="mt-4">
+                    <button
+                      onClick={() => setReviewStep("confirm")}
+                      className="tt-pop text-xs font-medium text-muted hover:text-foreground transition-colors"
+                    >
+                      ← Back to review
+                    </button>
+                  </div>
                   {archiveState === "saved" && canSave && (
-                    <p className="mt-4 text-center text-sm font-medium text-success">
+                    <p className="mt-2 text-center text-sm font-medium text-success">
                       ✓ Saved to your archive
                     </p>
                   )}
