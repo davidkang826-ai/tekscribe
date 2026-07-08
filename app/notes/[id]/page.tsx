@@ -30,10 +30,11 @@ export default async function NoteDetailPage(props: {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("reply_to_email")
+    .select("reply_to_email, display_name")
     .eq("id", user.id)
     .single();
   const replyTo = profile?.reply_to_email || user.email || "";
+  const techName = profile?.display_name || "";
 
   const summary = note.summary as JobSummary | null;
 
@@ -154,7 +155,11 @@ export default async function NoteDetailPage(props: {
             )}
 
             {/* Re-send this job to a customer */}
-            <SendToCustomer summary={summary} defaultReplyTo={replyTo} />
+            <SendToCustomer
+              summary={summary}
+              defaultReplyTo={replyTo}
+              techName={techName}
+            />
           </div>
         )}
 

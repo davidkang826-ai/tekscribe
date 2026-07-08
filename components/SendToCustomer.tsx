@@ -5,7 +5,7 @@ import type { JobSummary } from "@/lib/types";
 
 type Channel = "email" | "text";
 
-function buildEmailBody(summary: JobSummary): string {
+function buildEmailBody(summary: JobSummary, signoffName?: string): string {
   const lines: string[] = [];
   if (summary.customerMessage) lines.push(summary.customerMessage, "");
   if (summary.workDone.length) {
@@ -24,6 +24,7 @@ function buildEmailBody(summary: JobSummary): string {
     lines.push("");
   }
   lines.push("Thank you for your business.");
+  if (signoffName) lines.push("", "Best,", signoffName);
   return lines.join("\n");
 }
 
@@ -46,11 +47,13 @@ export default function SendToCustomer({
   defaultReplyTo = "",
   defaultCustomerEmail = "",
   defaultCustomerPhone = "",
+  techName = "",
 }: {
   summary: JobSummary;
   defaultReplyTo?: string;
   defaultCustomerEmail?: string;
   defaultCustomerPhone?: string;
+  techName?: string;
 }) {
   const [channel, setChannel] = useState<Channel>("email");
   const [email, setEmail] = useState(defaultCustomerEmail);
@@ -69,7 +72,12 @@ export default function SendToCustomer({
   const [editingReplyTo, setEditingReplyTo] = useState(false);
   const validReplyTo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyTo);
 
-  const emailBody = useMemo(() => buildEmailBody(summary), [summary]);
+  // Sign off with the tech's first name ("Best, Johnny").
+  const firstName = techName.trim().split(/\s+/)[0] || "";
+  const emailBody = useMemo(
+    () => buildEmailBody(summary, firstName),
+    [summary, firstName]
+  );
   const smsBody = useMemo(() => buildSmsBody(summary), [summary]);
 
   const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);

@@ -150,8 +150,6 @@ export default function Recorder({
   const [elapsed, setElapsed] = useState(0);
   const [transcript, setTranscript] = useState("");
   const [summary, setSummary] = useState<JobSummary | null>(null);
-  const [questions, setQuestions] = useState<string[]>([]);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
   const [, setNoteId] = useState<string | null>(null);
   const [writingDone, setWritingDone] = useState(false);
   const [reviewStep, setReviewStep] = useState<ReviewStep>("confirm");
@@ -198,8 +196,6 @@ export default function Recorder({
   const resetAll = () => {
     setTranscript("");
     setSummary(null);
-    setQuestions([]);
-    setAnswers({});
     setNoteId(null);
     setWritingDone(false);
     setError(null);
@@ -500,26 +496,19 @@ export default function Recorder({
     runTranscription(lastBlobRef.current);
   }
 
-  // Optional extra context (the tech's answers to clarifying questions) is
-  // appended to the note the AI reads, without altering the saved transcript.
-  async function handleSummarize(extraContext?: string) {
+  async function handleSummarize() {
     setError(null);
     setPhase("summarizing");
     try {
-      const noteForAI = extraContext
-        ? `${transcript}\n\nThe technician clarified:\n${extraContext}`
-        : transcript;
       const res = await fetch("/api/summarize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript: noteForAI, techName }),
+        body: JSON.stringify({ transcript, techName }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Summarization failed.");
       const sum = data.summary as JobSummary;
       setSummary(sum);
-      setQuestions(Array.isArray(data.questions) ? data.questions : []);
-      setAnswers({});
       setEditing(false);
       // No customer message means no typewriter to finish, so unlock the
       // review controls right away.
@@ -532,18 +521,8 @@ export default function Recorder({
     }
   }
 
-  function submitAnswers() {
-    const qa = questions
-      .map((q, i) => ({ q, a: (answers[i] || "").trim() }))
-      .filter((x) => x.a);
-    if (!qa.length) return;
-    const extra = qa.map((x) => `Q: ${x.q}\nA: ${x.a}`).join("\n");
-    handleSummarize(extra);
-  }
-
   function tweakSummary() {
     setSummary(null);
-    setQuestions([]);
     setWritingDone(false);
     setReviewStep("confirm");
     setPhase("transcript");
@@ -1303,46 +1282,6 @@ export default function Recorder({
               {/* Step 2: review, clarify, confirm */}
               {reviewStep === "confirm" && (
                 <>
-                  {questions.length > 0 && (
-                    <div className="mt-5 border-t border-border pt-5">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-accent-600 mb-1">
-                        A few things to confirm
-                      </div>
-                      <p className="text-xs text-muted mb-3">
-                        Answer what you can so nothing gets missed, then update
-                        the note.
-                      </p>
-                      <div className="space-y-3">
-                        {questions.map((q, i) => (
-                          <div key={i}>
-                            <label className="block text-sm text-foreground mb-1">
-                              {q}
-                            </label>
-                            <input
-                              type="text"
-                              value={answers[i] || ""}
-                              onChange={(e) =>
-                                setAnswers((prev) => ({
-                                  ...prev,
-                                  [i]: e.target.value,
-                                }))
-                              }
-                              placeholder="Your answer"
-                              className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                      <button
-                        onClick={submitAnswers}
-                        disabled={!Object.values(answers).some((a) => a.trim())}
-                        className="mt-3 inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
-                      >
-                        ↻ Update the note
-                      </button>
-                    </div>
-                  )}
-
                   <div className="mt-5 border-t border-border pt-5 text-center">
                     <p className="font-medium text-foreground">Look right?</p>
                     <div className="mt-3 flex flex-wrap justify-center gap-3">
@@ -1435,6 +1374,7 @@ export default function Recorder({
                     defaultReplyTo={replyTo}
                     defaultCustomerEmail={customerEmail}
                     defaultCustomerPhone={customerPhone}
+                    techName={techName}
                   />
                   <div className="mt-5 border-t border-border pt-4 text-center">
                     <button
@@ -1703,7 +1643,7 @@ function SummaryEditor({
   return (
     <div className="mt-2 space-y-4">
       <p className="text-xs text-muted">
-        Type to fix anything, or tap 🎙 to add details by voice.
+        ✏️ Type to fix anything, or tap 🎙 to add details by voice.
       </p>
 
       <div>
@@ -1758,7 +1698,7 @@ function SummaryEditor({
                 onClick={() => setList(key, [...summary[key], ""])}
                 className="tt-pop text-xs font-medium text-brand hover:underline"
               >
-                + Add line
+                ✏️ Add by typing
               </button>
               <button
                 type="button"

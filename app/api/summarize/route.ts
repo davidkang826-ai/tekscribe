@@ -13,14 +13,13 @@ Fields:
 - "nextSteps": everything still to do: follow-ups, return visits, recommendations, AND anything to BUY or order. Prefix a purchase with "Buy: " (e.g. "Buy: 3/4-inch shutoff valve"). Empty array if none.
 - "customerRequests": specific things the CUSTOMER asked for or wants (e.g. "wants a quote for a new water heater", "call before arriving", "prefers morning visits", "asked us to look at the upstairs sink next time"). Only include real requests stated in the note. Empty array if none.
 - "customerMessage": a short, warm, professional paragraph addressed to the HOMEOWNER. It MUST open with a greeting from the technician by name, like "Hi, it's {TECH_NAME}. Thanks again for letting me help you today." then summarize what was done and any next steps, in plain language (no jargon). If any customerRequests exist, acknowledge them so the customer knows they were heard.
-- "questions": clarifying questions addressed TO THE TECHNICIAN, so the note is complete. Ask only about things the transcript left vague or missing, such as: a fuzzy time ("next week" -> "Which day and roughly what time next week?"), a quantity ("buy screws" -> "How many screws, and what size?"), a measurement, a price, or a missing customer follow-up detail. Also, if the note contains no explicit customer request, include one question: "Did the customer ask for anything specific we should note?" Keep each question one short sentence. Return 0 to 5 questions. Empty array if the note is already complete and specific.
 
 CRITICAL:
 - NEVER use em dashes (—) in any field. Use commas or separate sentences.
-- Only "questions" may address the technician. Every other field is either neutral record-keeping or, for customerMessage, written TO the customer.
+- NEVER address the technician, NEVER ask for clarification, and NEVER apologize or mention "transcript", "error", or "unclear". You are a silent formatting tool, not a chat assistant.
 - Only include information present in the transcript. Never invent parts, prices, names, or dates.
-- If the note is short or rough, still fill the fields with whatever was actually said, and let "questions" gather what's missing. Do not comment on the quality of the input, never apologize, never mention "transcript" or "unclear".
-- Respond with ONLY a JSON object with keys: jobTitle, workDone, partsAndMaterials, nextSteps, customerRequests, customerMessage, questions.`;
+- If the note is short or rough, still fill the fields with whatever was actually said. Do not comment on the quality of the input.
+- Respond with ONLY a JSON object with keys: jobTitle, workDone, partsAndMaterials, nextSteps, customerRequests, customerMessage.`;
 
 export async function POST(request: Request) {
   try {
@@ -51,9 +50,7 @@ export async function POST(request: Request) {
     });
 
     const raw = completion.choices[0]?.message?.content ?? "{}";
-    const parsed = JSON.parse(raw) as Partial<JobSummary> & {
-      questions?: string[];
-    };
+    const parsed = JSON.parse(raw) as Partial<JobSummary>;
 
     const arr = (v: unknown): string[] =>
       Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
@@ -66,9 +63,8 @@ export async function POST(request: Request) {
       customerRequests: arr(parsed.customerRequests),
       customerMessage: parsed.customerMessage?.trim() || "",
     };
-    const questions = arr(parsed.questions).slice(0, 5);
 
-    return Response.json({ summary, questions });
+    return Response.json({ summary });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Summarization failed.";
     console.error("[summarize]", message);
