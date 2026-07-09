@@ -30,11 +30,12 @@ export default async function NoteDetailPage(props: {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("reply_to_email, display_name")
+    .select("reply_to_email, display_name, phone")
     .eq("id", user.id)
     .single();
   const replyTo = profile?.reply_to_email || user.email || "";
   const techName = profile?.display_name || "";
+  const techPhone = profile?.phone || "";
 
   const summary = note.summary as JobSummary | null;
 
@@ -148,6 +149,7 @@ export default async function NoteDetailPage(props: {
               summary={summary}
               defaultReplyTo={replyTo}
               techName={techName}
+              techPhone={techPhone}
             />
           </div>
         )}

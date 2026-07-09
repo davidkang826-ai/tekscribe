@@ -5,7 +5,23 @@ import type { JobSummary } from "@/lib/types";
 
 type Channel = "email" | "text";
 
-function buildEmailBody(summary: JobSummary, signoffName?: string): string {
+type Contact = { phone?: string; email?: string };
+
+/** A closing line so the customer knows how to reach the tech for follow-ups. */
+function contactLine(contact?: Contact): string {
+  const phone = contact?.phone?.trim();
+  const email = contact?.email?.trim();
+  if (phone && email)
+    return `If you have any follow-up questions, reach me at ${phone} or ${email}.`;
+  if (phone) return `If you have any follow-up questions, reach me at ${phone}.`;
+  if (email) return `If you have any follow-up questions, reach me at ${email}.`;
+  return "";
+}
+
+function buildEmailBody(
+  summary: JobSummary,
+  opts: { signoffName?: string; contact?: Contact } = {}
+): string {
   const lines: string[] = [];
   if (summary.customerMessage) lines.push(summary.customerMessage, "");
   if (summary.workDone.length) {
@@ -24,11 +40,13 @@ function buildEmailBody(summary: JobSummary, signoffName?: string): string {
     lines.push("");
   }
   lines.push("Thank you for your business.");
-  if (signoffName) lines.push("", "Best,", signoffName);
+  const reach = contactLine(opts.contact);
+  if (reach) lines.push("", reach);
+  if (opts.signoffName) lines.push("", "Best,", opts.signoffName);
   return lines.join("\n");
 }
 
-function buildSmsBody(summary: JobSummary): string {
+function buildSmsBody(summary: JobSummary, contact?: Contact): string {
   const lines: string[] = [];
   if (summary.customerMessage) lines.push(summary.customerMessage);
   if (summary.customerRequests?.length) {
@@ -39,6 +57,8 @@ function buildSmsBody(summary: JobSummary): string {
     lines.push("", "Next steps:");
     for (const item of summary.nextSteps) lines.push(`- ${item}`);
   }
+  const reach = contactLine(contact);
+  if (reach) lines.push("", reach);
   return lines.join("\n");
 }
 
@@ -48,12 +68,14 @@ export default function SendToCustomer({
   defaultCustomerEmail = "",
   defaultCustomerPhone = "",
   techName = "",
+  techPhone = "",
 }: {
   summary: JobSummary;
   defaultReplyTo?: string;
   defaultCustomerEmail?: string;
   defaultCustomerPhone?: string;
   techName?: string;
+  techPhone?: string;
 }) {
   const [channel, setChannel] = useState<Channel>("email");
   const [email, setEmail] = useState(defaultCustomerEmail);
@@ -74,11 +96,20 @@ export default function SendToCustomer({
 
   // Sign off with the tech's first name ("Best, Johnny").
   const firstName = techName.trim().split(/\s+/)[0] || "";
-  const emailBody = useMemo(
-    () => buildEmailBody(summary, firstName),
-    [summary, firstName]
+  // How the customer can reach the tech for follow-ups (their phone + the
+  // reply-to email, which is what replies already go to).
+  const contact = useMemo(
+    () => ({ phone: techPhone, email: validReplyTo ? replyTo : "" }),
+    [techPhone, replyTo, validReplyTo]
   );
-  const smsBody = useMemo(() => buildSmsBody(summary), [summary]);
+  const emailBody = useMemo(
+    () => buildEmailBody(summary, { signoffName: firstName, contact }),
+    [summary, firstName, contact]
+  );
+  const smsBody = useMemo(
+    () => buildSmsBody(summary, contact),
+    [summary, contact]
+  );
 
   const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const phoneDigits = phone.replace(/[^\d+]/g, "");

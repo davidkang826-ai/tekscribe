@@ -12,6 +12,7 @@ export default async function Home() {
   let replyTo = "";
   let userId = "";
   let techName = "";
+  let techPhone = "";
 
   // Once Supabase is configured, the app requires a verified account with a
   // phone number. Until then it stays open so the core loop is demoable.
@@ -29,6 +30,7 @@ export default async function Home() {
       .single();
     if (!profile?.phone) redirect("/onboarding");
     replyTo = profile.reply_to_email || user.email || "";
+    techPhone = profile.phone || "";
 
     // display_name is optional and may not exist yet on databases where the
     // migration hasn't run. Fetch it on its own and tolerate failure, so a
@@ -90,6 +92,7 @@ export default async function Home() {
           replyTo={replyTo}
           userId={userId}
           techName={techName}
+          techPhone={techPhone}
         />
       </main>
 

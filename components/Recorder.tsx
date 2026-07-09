@@ -143,12 +143,14 @@ export default function Recorder({
   replyTo = "",
   userId = "",
   techName = "",
+  techPhone = "",
 }: {
   canSave?: boolean;
   customers?: Customer[];
   replyTo?: string;
   userId?: string;
   techName?: string;
+  techPhone?: string;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [elapsed, setElapsed] = useState(0);
@@ -1474,6 +1476,7 @@ export default function Recorder({
                         defaultCustomerEmail={customerEmail}
                         defaultCustomerPhone={customerPhone}
                         techName={techName}
+                        techPhone={techPhone}
                       />
                       <div className="mt-5 border-t border-border pt-4 text-center">
                         <button
