@@ -955,7 +955,7 @@ export default function Recorder({
             )}
             <span
               className={`relative flex items-center justify-center w-36 h-36 rounded-full bg-surface shadow-lg ${
-                isPaused ? "ring-2 ring-accent" : "ring-1 ring-border"
+                isPaused ? "ring-2 ring-brand" : "ring-1 ring-border"
               } ${isRecording && !holding ? "tt-pulse" : ""}`}
             >
               <LogoMark size={84} />
@@ -965,11 +965,7 @@ export default function Recorder({
           <div className="mt-5 text-center">
             {isRecording || isPaused ? (
               <>
-                <span
-                  className={`font-mono text-lg tabular-nums ${
-                    isPaused ? "text-accent-600" : "text-brand"
-                  }`}
-                >
+                <span className="font-mono text-lg tabular-nums text-brand">
                   {formatTime(elapsed)}
                 </span>
                 <div className="text-xs text-muted mt-0.5">
