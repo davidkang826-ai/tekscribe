@@ -946,7 +946,7 @@ export default function Recorder({
                   cy="88"
                   r="85"
                   fill="none"
-                  stroke="var(--success)"
+                  stroke="var(--brand)"
                   strokeWidth="5"
                   strokeLinecap="round"
                   className="tt-hold-arc"
