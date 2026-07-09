@@ -13,6 +13,7 @@ export type PlanTier = {
   priceYearly: number; // shown per month when billed yearly
   features: string[];
   highlighted?: boolean;
+  notesPerMonth: number | null; // null = unlimited
   stripe: { monthly?: string; yearly?: string };
 };
 
@@ -30,6 +31,7 @@ export const PLANS: PlanTier[] = [
       "Photos and files on each visit",
       "30 days of history",
     ],
+    notesPerMonth: 10,
     stripe: {},
   },
   {
@@ -45,6 +47,7 @@ export const PLANS: PlanTier[] = [
       "Works offline, finishes when you're back",
       "Everything in Free",
     ],
+    notesPerMonth: null,
     stripe: {
       monthly: process.env.STRIPE_PRICE_PRO_MONTHLY,
       yearly: process.env.STRIPE_PRICE_PRO_YEARLY,
@@ -61,6 +64,7 @@ export const PLANS: PlanTier[] = [
       "Shared customer directory",
       "Admin controls",
     ],
+    notesPerMonth: null,
     stripe: {
       monthly: process.env.STRIPE_PRICE_TEAM_MONTHLY,
       yearly: process.env.STRIPE_PRICE_TEAM_YEARLY,

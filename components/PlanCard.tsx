@@ -7,10 +7,14 @@ export default function PlanCard({
   planName,
   planStatus,
   hasBilling,
+  notesUsed,
+  notesLimit,
 }: {
   planName: string;
   planStatus: string | null;
   hasBilling: boolean;
+  notesUsed: number;
+  notesLimit: number | null;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +36,12 @@ export default function PlanCard({
 
   const statusLabel =
     planStatus && planStatus !== "active" ? ` · ${planStatus}` : "";
+  const left = notesLimit === null ? null : Math.max(0, notesLimit - notesUsed);
+  const pct =
+    notesLimit && notesLimit > 0
+      ? Math.min(100, Math.round((notesUsed / notesLimit) * 100))
+      : 0;
+  const atLimit = left === 0;
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
@@ -46,6 +56,32 @@ export default function PlanCard({
           )}
         </span>
       </div>
+
+      {notesLimit === null ? (
+        <p className="mt-1 text-sm text-muted">Unlimited notes</p>
+      ) : (
+        <div className="mt-3">
+          <div className="flex items-baseline justify-between text-sm">
+            <span className="text-muted">Notes this month</span>
+            <span className="font-medium text-foreground">
+              {notesUsed} of {notesLimit}
+            </span>
+          </div>
+          <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            <div
+              className={`h-full rounded-full ${
+                atLimit ? "bg-accent" : "bg-brand"
+              }`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <p className="mt-1 text-xs text-muted">
+            {atLimit
+              ? "You've used all your notes this month. Resets on the 1st."
+              : `${left} left this month. Resets on the 1st.`}
+          </p>
+        </div>
+      )}
 
       {error && <p className="mt-2 text-xs text-danger">{error}</p>}
 

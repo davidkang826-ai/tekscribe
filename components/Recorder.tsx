@@ -816,16 +816,6 @@ export default function Recorder({
     return (
       <div className="flex flex-wrap items-center justify-center gap-2">
         <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
-          📷 Take photo
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={addAttachment}
-            className="hidden"
-          />
-        </label>
-        <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
           🖼 Photo
           <input
             type="file"

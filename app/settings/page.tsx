@@ -40,6 +40,23 @@ export default async function SettingsPage() {
   }
   const planName = planById(planId)?.name ?? "Free";
 
+  // Notes left this calendar month (only matters on a capped plan like Free).
+  const notesLimit = planById(planId)?.notesPerMonth ?? null;
+  let notesUsed = 0;
+  if (notesLimit !== null) {
+    const now = new Date();
+    const monthStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      1
+    ).toISOString();
+    const { count } = await supabase
+      .from("voice_notes")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", monthStart);
+    notesUsed = count ?? 0;
+  }
+
   return (
     <div className="min-h-full flex flex-col">
       <header className="w-full px-5 pt-5 pb-2">
@@ -68,6 +85,8 @@ export default async function SettingsPage() {
           planName={planName}
           planStatus={planStatus}
           hasBilling={hasBilling}
+          notesUsed={notesUsed}
+          notesLimit={notesLimit}
         />
 
         <div className="flex items-center justify-between border-t border-border pt-5">

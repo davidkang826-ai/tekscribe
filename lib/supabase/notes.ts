@@ -1,5 +1,7 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { JobSummary, Attachment } from "@/lib/types";
 
@@ -94,4 +96,44 @@ export async function updateNoteSummary(
 
   if (error) return { error: error.message };
   return { id };
+}
+
+/** Delete a single archived note (and its stored photos/files), then reload
+ *  the archive. RLS also scopes the delete to the signed-in tech's own notes. */
+export async function deleteNote(formData: FormData): Promise<void> {
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  // Remove any attached files from storage first (best effort).
+  const { data: note } = await supabase
+    .from("voice_notes")
+    .select("attachments")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const paths = ((note?.attachments as { path?: string }[] | null) ?? [])
+    .map((a) => a?.path)
+    .filter((p): p is string => !!p);
+  if (paths.length) {
+    try {
+      await supabase.storage.from("visit-media").remove(paths);
+    } catch {
+      // best-effort
+    }
+  }
+
+  await supabase
+    .from("voice_notes")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  revalidatePath("/notes");
+  redirect("/notes");
 }
