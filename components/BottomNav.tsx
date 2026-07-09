@@ -76,7 +76,7 @@ const TABS = [
     href: "/settings",
     label: "Settings",
     Icon: GearIcon,
-    match: (p: string) => p.startsWith("/settings"),
+    match: (p: string) => p.startsWith("/settings") || p.startsWith("/plans"),
   },
 ];
 

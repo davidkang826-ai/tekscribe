@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Logo } from "@/components/Logo";
+import BottomNav from "@/components/BottomNav";
 import PlanChooser from "@/components/PlanChooser";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -36,7 +37,7 @@ export default async function PlansPage(props: {
         </Link>
       </header>
 
-      <main className="flex-1 w-full max-w-3xl mx-auto px-5 pt-6 pb-16">
+      <main className="flex-1 w-full max-w-3xl mx-auto px-5 pt-6 pb-28">
         {success ? (
           <div className="mx-auto max-w-md rounded-2xl border border-border bg-surface p-8 text-center shadow-sm">
             <div className="text-4xl mb-2">🎉</div>
@@ -69,6 +70,8 @@ export default async function PlansPage(props: {
           </>
         )}
       </main>
+
+      <BottomNav />
     </div>
   );
 }
