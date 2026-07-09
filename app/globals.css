@@ -129,6 +129,20 @@ button:disabled {
   border-bottom-color: #f59e0b;
 }
 
+/* Softer, more lifted card shadow for the Airbnb-style polish */
+.tt-elevate {
+  box-shadow: 0 6px 24px rgba(2, 6, 23, 0.06);
+}
+.tt-elevate-hover:hover {
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.1);
+}
+
+/* Bottom tab bar: lift it off the content and respect the phone safe area */
+.tt-bottom-nav {
+  box-shadow: 0 -1px 16px rgba(2, 6, 23, 0.05);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 /* Press-and-hold-to-end: a ring that fills over 2s while the button is held */
 @keyframes tt-hold-fill {
   from { stroke-dashoffset: 534; }

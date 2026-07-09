@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import Recorder from "@/components/Recorder";
-import SignOutButton from "@/components/SignOutButton";
+import BottomNav from "@/components/BottomNav";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { Customer } from "@/lib/types";
@@ -56,42 +55,21 @@ export default async function Home() {
     authed = true;
   }
 
+  const firstName = techName.trim().split(/\s+/)[0] || "";
+
   return (
     <div className="min-h-full flex flex-col">
-      <header className="w-full border-b border-border bg-surface/80 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-5 h-16 flex items-center justify-between">
-          <Logo size={30} />
-          {authed ? (
-            <div className="flex items-center gap-5">
-              <Link
-                href="/notes"
-                className="tt-pop text-sm font-medium text-muted hover:text-foreground transition-colors leading-none"
-              >
-                Archive
-              </Link>
-              <Link
-                href="/settings"
-                className="tt-pop text-sm font-medium text-muted hover:text-foreground transition-colors leading-none"
-              >
-                Settings
-              </Link>
-              <SignOutButton />
-            </div>
-          ) : (
-            <span className="text-xs font-medium text-muted">
-              for field-service pros
-            </span>
-          )}
-        </div>
+      <header className="w-full px-5 pt-5 pb-2">
+        <Logo size={30} />
       </header>
 
-      <main className="flex-1 w-full max-w-3xl mx-auto px-5 py-10 sm:py-14">
+      <main className="flex-1 w-full max-w-3xl mx-auto px-5 pt-6 pb-28 sm:pt-10">
         <div className="text-center mb-10">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            Your intelligent scribe
+            {authed && firstName ? `Hi ${firstName}.` : "Ready when you are."}
           </h1>
           <p className="mt-2 text-muted max-w-lg mx-auto">
-            We listen and analyze so you can focus on the job.
+            Tap the mic and tell me about your visit.
           </p>
         </div>
 
@@ -104,17 +82,7 @@ export default async function Home() {
         />
       </main>
 
-      <footer className="w-full border-t border-border py-6 text-center text-xs text-muted space-y-1">
-        <div>TekScribe · voice-to-summary for the trades</div>
-        <div className="flex justify-center gap-4">
-          <Link href="/privacy" className="hover:text-foreground transition">
-            Privacy
-          </Link>
-          <Link href="/terms" className="hover:text-foreground transition">
-            Terms
-          </Link>
-        </div>
-      </footer>
+      {authed && <BottomNav />}
     </div>
   );
 }

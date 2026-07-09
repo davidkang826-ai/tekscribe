@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import SignOutButton from "@/components/SignOutButton";
+import BottomNav from "@/components/BottomNav";
 import SettingsForm from "@/components/SettingsForm";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -23,26 +24,17 @@ export default async function SettingsPage() {
 
   return (
     <div className="min-h-full flex flex-col">
-      <header className="w-full border-b border-border bg-surface/80 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-5 h-16 flex items-center justify-between">
-          <Link href="/">
-            <Logo size={30} />
-          </Link>
-          <div className="flex items-center gap-5">
-            <Link
-              href="/"
-              className="tt-pop text-sm font-medium text-muted hover:text-foreground transition-colors leading-none"
-            >
-              New note
-            </Link>
-            <SignOutButton />
-          </div>
-        </div>
+      <header className="w-full px-5 pt-5 pb-2">
+        <Link href="/">
+          <Logo size={30} />
+        </Link>
       </header>
 
-      <main className="flex-1 w-full max-w-lg mx-auto px-5 py-10 space-y-6">
+      <main className="flex-1 w-full max-w-lg mx-auto px-5 pt-4 pb-28 space-y-6">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Settings</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            Settings
+          </h1>
           <p className="mt-1 text-sm text-muted">
             Your name and where customer replies go.
           </p>
@@ -53,7 +45,21 @@ export default async function SettingsPage() {
           replyTo={profile?.reply_to_email ?? user.email ?? ""}
           businessName={profile?.business_name ?? ""}
         />
+
+        <div className="flex items-center justify-between border-t border-border pt-5">
+          <SignOutButton />
+          <div className="flex gap-4 text-xs text-muted">
+            <Link href="/privacy" className="hover:text-foreground transition">
+              Privacy
+            </Link>
+            <Link href="/terms" className="hover:text-foreground transition">
+              Terms
+            </Link>
+          </div>
+        </div>
       </main>
+
+      <BottomNav />
     </div>
   );
 }

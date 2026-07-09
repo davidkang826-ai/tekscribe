@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { Logo } from "@/components/Logo";
-import SignOutButton from "@/components/SignOutButton";
+import BottomNav from "@/components/BottomNav";
 import SendToCustomer from "@/components/SendToCustomer";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -51,24 +51,13 @@ export default async function NoteDetailPage(props: {
 
   return (
     <div className="min-h-full flex flex-col">
-      <header className="w-full border-b border-border bg-surface/80 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-5 h-16 flex items-center justify-between">
-          <Link href="/">
-            <Logo size={30} />
-          </Link>
-          <div className="flex items-center gap-5">
-            <Link
-              href="/"
-              className="tt-pop text-sm font-medium text-muted hover:text-foreground transition-colors leading-none"
-            >
-              New note
-            </Link>
-            <SignOutButton />
-          </div>
-        </div>
+      <header className="w-full px-5 pt-5 pb-2">
+        <Link href="/">
+          <Logo size={30} />
+        </Link>
       </header>
 
-      <main className="flex-1 w-full max-w-3xl mx-auto px-5 py-8">
+      <main className="flex-1 w-full max-w-3xl mx-auto px-5 pt-2 pb-28">
         <Link
           href="/notes"
           className="text-sm font-medium text-brand hover:underline"
@@ -178,6 +167,8 @@ export default async function NoteDetailPage(props: {
           )}
         </div>
       </main>
+
+      <BottomNav />
     </div>
   );
 }
