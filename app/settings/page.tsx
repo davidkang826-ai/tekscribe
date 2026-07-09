@@ -4,6 +4,8 @@ import { Logo } from "@/components/Logo";
 import SignOutButton from "@/components/SignOutButton";
 import BottomNav from "@/components/BottomNav";
 import SettingsForm from "@/components/SettingsForm";
+import PlanCard from "@/components/PlanCard";
+import { planById } from "@/lib/plans";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
@@ -21,6 +23,22 @@ export default async function SettingsPage() {
     .select("display_name, reply_to_email, business_name")
     .eq("id", user.id)
     .single();
+
+  // Plan info, tolerated if the migration hasn't run yet.
+  let planId = "free";
+  let planStatus: string | null = null;
+  let hasBilling = false;
+  const { data: planRow, error: planErr } = await supabase
+    .from("profiles")
+    .select("plan, plan_status, stripe_customer_id")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (!planErr && planRow) {
+    planId = planRow.plan || "free";
+    planStatus = planRow.plan_status ?? null;
+    hasBilling = !!planRow.stripe_customer_id;
+  }
+  const planName = planById(planId)?.name ?? "Free";
 
   return (
     <div className="min-h-full flex flex-col">
@@ -44,6 +62,12 @@ export default async function SettingsPage() {
           displayName={profile?.display_name ?? ""}
           replyTo={profile?.reply_to_email ?? user.email ?? ""}
           businessName={profile?.business_name ?? ""}
+        />
+
+        <PlanCard
+          planName={planName}
+          planStatus={planStatus}
+          hasBilling={hasBilling}
         />
 
         <div className="flex items-center justify-between border-t border-border pt-5">

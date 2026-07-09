@@ -45,6 +45,17 @@ export default async function Home() {
       techName = "";
     }
 
+    // Right after signup, send them to pick a plan, once. Loop-safe: only gate
+    // when the column exists and is explicitly false (never when it's missing).
+    const { data: planRow, error: planErr } = await supabase
+      .from("profiles")
+      .select("plan_selected")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!planErr && planRow && planRow.plan_selected === false) {
+      redirect("/plans");
+    }
+
     const { data: custs } = await supabase
       .from("customers")
       .select("name, email, phone")
