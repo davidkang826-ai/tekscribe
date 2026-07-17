@@ -5,6 +5,7 @@ import SignOutButton from "@/components/SignOutButton";
 import BottomNav from "@/components/BottomNav";
 import SettingsForm from "@/components/SettingsForm";
 import PlanCard from "@/components/PlanCard";
+import DeleteAccountButton from "@/components/DeleteAccountButton";
 import { planById } from "@/lib/plans";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -99,6 +100,13 @@ export default async function SettingsPage() {
               Terms
             </Link>
           </div>
+        </div>
+
+        <div className="border-t border-border pt-5">
+          <div className="text-xs font-semibold uppercase tracking-wide text-danger mb-2">
+            Danger zone
+          </div>
+          <DeleteAccountButton />
         </div>
       </main>
 
