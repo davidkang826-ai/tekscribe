@@ -28,57 +28,59 @@ export default async function SettingsPage(props: {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("display_name, reply_to_email, business_name")
-    .eq("id", user.id)
-    .single();
+  // All independent lookups go out in parallel — sequential round trips were
+  // making this page feel slow. Optional columns stay tolerated on error, so
+  // a database where a migration hasn't run can never break Settings.
+  const monthStart = (() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  })();
+  const [profileRes, planRes, driveRes, notesRes] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("display_name, reply_to_email, business_name")
+      .eq("id", user.id)
+      .single(),
+    supabase
+      .from("profiles")
+      .select("plan, plan_status, stripe_customer_id")
+      .eq("id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("profiles")
+      .select("google_refresh_token, google_drive_email")
+      .eq("id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("voice_notes")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", monthStart),
+  ]);
+
+  const profile = profileRes.data;
 
   // Plan info, tolerated if the migration hasn't run yet.
   let planId = "free";
   let planStatus: string | null = null;
   let hasBilling = false;
-  const { data: planRow, error: planErr } = await supabase
-    .from("profiles")
-    .select("plan, plan_status, stripe_customer_id")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!planErr && planRow) {
-    planId = planRow.plan || "free";
-    planStatus = planRow.plan_status ?? null;
-    hasBilling = !!planRow.stripe_customer_id;
+  if (!planRes.error && planRes.data) {
+    planId = planRes.data.plan || "free";
+    planStatus = planRes.data.plan_status ?? null;
+    hasBilling = !!planRes.data.stripe_customer_id;
   }
   const planName = planById(planId)?.name ?? "Free";
 
   // Google Drive connection, tolerated if the migration hasn't run yet.
   let driveConnected = false;
   let driveEmail: string | null = null;
-  const { data: driveRow, error: driveErr } = await supabase
-    .from("profiles")
-    .select("google_refresh_token, google_drive_email")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!driveErr && driveRow) {
-    driveConnected = !!driveRow.google_refresh_token;
-    driveEmail = driveRow.google_drive_email ?? null;
+  if (!driveRes.error && driveRes.data) {
+    driveConnected = !!driveRes.data.google_refresh_token;
+    driveEmail = driveRes.data.google_drive_email ?? null;
   }
 
   // Notes left this calendar month (only matters on a capped plan like Free).
   const notesLimit = planById(planId)?.notesPerMonth ?? null;
-  let notesUsed = 0;
-  if (notesLimit !== null) {
-    const now = new Date();
-    const monthStart = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      1
-    ).toISOString();
-    const { count } = await supabase
-      .from("voice_notes")
-      .select("id", { count: "exact", head: true })
-      .gte("created_at", monthStart);
-    notesUsed = count ?? 0;
-  }
+  const notesUsed = notesLimit !== null ? (notesRes.count ?? 0) : 0;
 
   return (
     <div className="min-h-full flex flex-col">
