@@ -101,10 +101,12 @@ async function scaleImageToBlob(
   );
 }
 
-/** Types text out character-by-character with a blinking cursor. */
+/** Types text out with a blinking cursor. Chunk size scales with length so
+ *  the whole reveal takes ~1s no matter how long the message is — the flow's
+ *  next buttons wait on this, so it must never feel stuck. */
 function Typewriter({
   text,
-  speed = 14,
+  speed = 12,
   onDone,
 }: {
   text: string;
@@ -113,6 +115,7 @@ function Typewriter({
 }) {
   const [n, setN] = useState(0);
   const doneRef = useRef(false);
+  const perTick = Math.max(1, Math.ceil(text.length / 80));
 
   useEffect(() => {
     setN(0);
@@ -121,14 +124,14 @@ function Typewriter({
 
   useEffect(() => {
     if (n < text.length) {
-      const id = setTimeout(() => setN((v) => v + 1), speed);
+      const id = setTimeout(() => setN((v) => v + perTick), speed);
       return () => clearTimeout(id);
     }
     if (!doneRef.current && text.length > 0) {
       doneRef.current = true;
       onDone?.();
     }
-  }, [n, text, speed, onDone]);
+  }, [n, text, speed, perTick, onDone]);
 
   return (
     <span>
@@ -232,6 +235,15 @@ export default function Recorder({
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = null;
   };
+
+  // Failsafe: the step-2 buttons wait for the typewriter reveal, and browsers
+  // throttle its timers in background tabs. Whatever happens, unlock the flow
+  // shortly after the note appears so nobody is ever stuck on step 2.
+  useEffect(() => {
+    if (phase !== "summarized" || writingDone) return;
+    const id = setTimeout(() => setWritingDone(true), 2500);
+    return () => clearTimeout(id);
+  }, [phase, writingDone]);
 
   const resetAll = () => {
     setTranscript("");
@@ -403,7 +415,7 @@ export default function Recorder({
     }
   }, []);
 
-  // --- Tap = pause/resume, press-and-hold 2s = end -------------------------
+  // --- Tap = pause/resume, press-and-hold 1.5s = end -----------------------
   const clearHold = () => {
     if (holdTimerRef.current) {
       clearTimeout(holdTimerRef.current);
@@ -422,7 +434,7 @@ export default function Recorder({
       setHolding(false);
       if (mediaRecorderRef.current?.state === "recording") pauseRecording();
       setEndConfirm(true);
-    }, 2000);
+    }, 1500);
   }
 
   function onRecordPointerEnd() {
@@ -1058,7 +1070,7 @@ export default function Recorder({
       {/* One combined progress screen: transcribe, then (later) summarize */}
       {(phase === "transcribing" || phase === "summarizing") && (
         <div className="mt-10 flex flex-col items-center gap-3 text-center">
-          <LogoMark size={64} className="tt-pulse" />
+          <LogoMark size={64} className="tt-logo-load" />
           <p className="text-brand font-medium">
             {phase === "transcribing" ? "Listening back…" : "Writing it up…"}
           </p>
@@ -1237,23 +1249,17 @@ export default function Recorder({
                 <span className="text-xs font-semibold uppercase tracking-wide text-accent-600">
                   AI Summary
                 </span>
-                {reviewStep === "confirm" && (
+                {reviewStep === "confirm" && editing && (
                   <button
                     onClick={() => {
-                      if (editing) {
-                        const cleaned = cleanSummary(summary);
-                        setSummary(cleaned);
-                        setEditing(false);
-                        maybeRefreshMessage(cleaned);
-                      } else {
-                        editSnapshotRef.current = JSON.stringify(summary);
-                        setWritingDone(true);
-                        setEditing(true);
-                      }
+                      const cleaned = cleanSummary(summary);
+                      setSummary(cleaned);
+                      setEditing(false);
+                      maybeRefreshMessage(cleaned);
                     }}
                     className="tt-pop text-xs font-medium text-brand hover:underline"
                   >
-                    {editing ? "✓ Done editing" : "✏️ Edit"}
+                    ✓ Done editing
                   </button>
                 )}
               </div>
@@ -1312,7 +1318,7 @@ export default function Recorder({
                       </div>
                       {refreshingMsg ? (
                         <p className="inline-flex items-center gap-2 text-sm font-medium text-brand">
-                          <LogoMark size={18} className="tt-pulse" />
+                          <LogoMark size={18} className="tt-logo-load" />
                           Updating to match your edits…
                         </p>
                       ) : (
@@ -1337,36 +1343,54 @@ export default function Recorder({
                   {/* Step 2: review, add anything missed, confirm */}
                   {reviewStep === "confirm" && (
                     <>
-                      {/* Forgot something? Say it and it gets filed in. */}
+                      {/* Forgot something? Say it or type it — side by side
+                          so both ways to fix the note are equally obvious. */}
                       <div className="mt-5 flex flex-col items-center gap-1.5 border-t border-border pt-5">
-                        <button
-                          type="button"
-                          onClick={
-                            detailRec === "recording"
-                              ? stopDetailVoice
-                              : startDetailVoice
-                          }
-                          disabled={detailRec === "busy"}
-                          className={`tt-pop inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium ring-1 transition ${
-                            detailRec === "recording"
-                              ? "bg-danger text-white ring-danger"
-                              : "bg-surface text-brand ring-border hover:bg-brand-50 disabled:opacity-60"
-                          }`}
-                        >
-                          {detailRec === "recording" ? (
-                            <>
-                              <span className="inline-block h-2 w-2 rounded-full bg-white tt-pulse" />
-                              Stop &amp; add it
-                            </>
-                          ) : detailRec === "busy" ? (
-                            "Adding it in…"
-                          ) : (
-                            "🎙 Add anything you missed"
-                          )}
-                        </button>
+                        <p className="text-sm font-medium text-foreground">
+                          Forgot something? Add or fix it:
+                        </p>
+                        <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={
+                              detailRec === "recording"
+                                ? stopDetailVoice
+                                : startDetailVoice
+                            }
+                            disabled={detailRec === "busy"}
+                            className={`tt-pop inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium ring-1 transition ${
+                              detailRec === "recording"
+                                ? "bg-danger text-white ring-danger"
+                                : "bg-surface text-brand ring-border hover:bg-brand-50 disabled:opacity-60"
+                            }`}
+                          >
+                            {detailRec === "recording" ? (
+                              <>
+                                <span className="inline-block h-2 w-2 rounded-full bg-white tt-pulse" />
+                                Stop &amp; add it
+                              </>
+                            ) : detailRec === "busy" ? (
+                              "Adding it in…"
+                            ) : (
+                              "🎙 Say it"
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              editSnapshotRef.current = JSON.stringify(summary);
+                              setWritingDone(true);
+                              setEditing(true);
+                            }}
+                            disabled={detailRec !== "idle"}
+                            className="tt-pop inline-flex items-center gap-1.5 rounded-full bg-surface px-4 py-2 text-sm font-medium text-brand ring-1 ring-border hover:bg-brand-50 disabled:opacity-60 transition"
+                          >
+                            ✏️ Type it
+                          </button>
+                        </div>
                         <p className="text-[11px] text-muted">
-                          Parts, customer requests, next steps, any detail. Or
-                          tap ✏️ Edit to type.
+                          Parts, customer requests, next steps, any detail — we
+                          file each in the right spot.
                         </p>
                       </div>
 

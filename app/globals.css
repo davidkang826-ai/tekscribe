@@ -173,22 +173,20 @@ button:disabled {
 ::view-transition-old(tt-nav) { display: none; }
 ::view-transition-new(tt-nav) { animation: none; }
 
-/* Loading screen logo: spins up quickly, decelerates, and settles at full
-   size — then breathes softly if the wait drags on. */
-@keyframes tt-logo-spin-settle {
-  0% { transform: rotate(0deg) scale(0.6); opacity: 0; }
-  55% { opacity: 1; }
-  70% { transform: rotate(330deg) scale(1.08); }
-  100% { transform: rotate(360deg) scale(1); opacity: 1; }
-}
-@keyframes tt-logo-breathe {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.05); opacity: 0.85; }
+/* Loading logo, used everywhere something is in flight (page navigation,
+   transcribing, summarizing): two quick spins, a quick double bounce, a
+   beat of rest, repeat. */
+@keyframes tt-logo-loop {
+  0% { transform: rotate(0turn) translateY(0); }
+  38% { transform: rotate(2turn) translateY(0); }
+  46% { transform: rotate(2turn) translateY(-14%); }
+  53% { transform: rotate(2turn) translateY(0); }
+  60% { transform: rotate(2turn) translateY(-7%); }
+  66% { transform: rotate(2turn) translateY(0); }
+  100% { transform: rotate(2turn) translateY(0); }
 }
 .tt-logo-load {
-  animation:
-    tt-logo-spin-settle 0.85s cubic-bezier(0.22, 1, 0.36, 1) both,
-    tt-logo-breathe 1.8s ease-in-out 0.85s infinite;
+  animation: tt-logo-loop 1.9s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
 }
 
 /* Idle record button: a slow, gentle breathe that invites the tap without
@@ -213,7 +211,8 @@ button:disabled {
   }
 }
 
-/* Press-and-hold-to-end: a ring that fills over 2s while the button is held */
+/* Press-and-hold-to-end: a ring that fills over 1.5s while the button is
+   held. Keep this duration in sync with the hold timer in Recorder.tsx. */
 @keyframes tt-hold-fill {
   from { stroke-dashoffset: 534; }
   to { stroke-dashoffset: 0; }
@@ -221,5 +220,5 @@ button:disabled {
 .tt-hold-arc {
   stroke-dasharray: 534;
   stroke-dashoffset: 534;
-  animation: tt-hold-fill 2s linear forwards;
+  animation: tt-hold-fill 1.5s linear forwards;
 }
