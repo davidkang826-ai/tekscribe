@@ -42,33 +42,60 @@ export function clientFolderName(
 }
 
 /** The note itself as a plain-text document, so the backup is complete even
- *  when a visit has no photos or files. */
+ *  when a visit has no photos or files. Reads top-down the way a tech would
+ *  retell the visit: what happened, what's next, what to buy, then the raw
+ *  transcript and the message the customer received. */
 function noteDocument(input: SyncInput): string {
   const s = input.summary;
   const lines: string[] = [];
+  const rule = "=".repeat(46);
+  const header = (title: string) => {
+    lines.push(rule);
+    lines.push(title.toUpperCase());
+    lines.push(rule);
+  };
+  const bullets = (items?: string[]) => {
+    for (const item of items ?? []) lines.push(`  • ${item}`);
+  };
+
   lines.push(s?.jobTitle || "Service visit");
   if (input.customerName) lines.push(`Customer: ${input.customerName}`);
+  lines.push(
+    `Date: ${new Date().toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })}`
+  );
   lines.push("");
 
-  const section = (title: string, items?: string[]) => {
-    if (!items?.length) return;
-    lines.push(title.toUpperCase());
-    for (const item of items) lines.push(`  • ${item}`);
+  if (s?.workDone?.length || s?.customerRequests?.length) {
+    header("Summary of the visit");
+    bullets(s?.workDone);
+    if (s?.customerRequests?.length) {
+      lines.push("  Customer requests:");
+      bullets(s.customerRequests);
+    }
     lines.push("");
-  };
-  section("Work done", s?.workDone);
-  section("Parts & materials", s?.partsAndMaterials);
-  section("Customer requests", s?.customerRequests);
-  section("Next steps", s?.nextSteps);
-
-  if (s?.customerMessage) {
-    lines.push("CUSTOMER MESSAGE");
-    lines.push(s.customerMessage);
+  }
+  if (s?.partsAndMaterials?.length) {
+    header("Parts & materials used");
+    bullets(s.partsAndMaterials);
+    lines.push("");
+  }
+  if (s?.nextSteps?.length) {
+    header("Next steps & things to buy for the next visit");
+    bullets(s.nextSteps);
     lines.push("");
   }
   if (input.transcript?.trim()) {
-    lines.push("ORIGINAL TRANSCRIPT");
+    header("Original transcript");
     lines.push(input.transcript.trim());
+    lines.push("");
+  }
+  if (s?.customerMessage) {
+    header("Message sent to the customer");
+    lines.push(s.customerMessage);
   }
   return lines.join("\n");
 }

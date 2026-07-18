@@ -1791,8 +1791,69 @@ function SummaryEditor({
 
   return (
     <div className="mt-2 space-y-4">
+      {/* First thing they see: just say or type what's missing and the AI
+          files it — hunting for the right section by hand is the fallback. */}
+      <div className="rounded-xl border border-dashed border-brand/40 bg-brand-50/50 p-3">
+        <p className="text-sm font-semibold text-foreground">
+          Add what&apos;s missing
+        </p>
+        <p className="mt-0.5 text-[11px] text-muted">
+          Say or type it in one go: work done, parts used, customer requests,
+          next steps. We file each in the right spot.
+        </p>
+        <div className="mt-2 flex gap-2">
+          <input
+            value={addText}
+            onChange={(e) => setAddText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && addText.trim() && addRec === "idle")
+                mergeIn(addText.trim());
+            }}
+            placeholder="Type what's missing…"
+            disabled={addRec !== "idle"}
+            className="flex-1 min-w-0 rounded-lg border border-border bg-surface px-3 py-2 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:opacity-60"
+          />
+          <button
+            type="button"
+            onClick={() => addText.trim() && mergeIn(addText.trim())}
+            disabled={!addText.trim() || addRec !== "idle"}
+            className="tt-pop shrink-0 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
+          >
+            Add
+          </button>
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={addRec === "recording" ? stopVoice : startVoice}
+            disabled={addRec === "busy"}
+            className={`tt-pop inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition ${
+              addRec === "recording"
+                ? "bg-danger text-white ring-danger"
+                : "bg-surface text-brand ring-border hover:bg-white disabled:opacity-60"
+            }`}
+          >
+            {addRec === "recording" ? (
+              <>
+                <span className="inline-block h-2 w-2 rounded-full bg-white tt-pulse" />
+                Stop &amp; add
+              </>
+            ) : addRec === "busy" ? (
+              "Adding it in…"
+            ) : (
+              "🎙 Or say it instead"
+            )}
+          </button>
+          {addRec === "recording" && (
+            <span className="text-xs text-danger">Listening…</span>
+          )}
+        </div>
+        {addError && <p className="mt-1.5 text-xs text-danger">{addError}</p>}
+      </div>
+
       <p className="text-xs text-muted">
-        ✏️ Tap any line to fix it, ✕ to remove it. Anything you type stays put.
+        ✏️ Or tap any line below to fix it, ✕ to remove it. Anything you type
+        stays put.
       </p>
 
       <div>
@@ -1851,65 +1912,6 @@ function SummaryEditor({
           </div>
         </div>
       ))}
-
-      {/* One box adds it all: the AI files each fact in the right section */}
-      <div className="rounded-xl border border-dashed border-brand/40 bg-brand-50/50 p-3">
-        <p className="text-sm font-semibold text-foreground">
-          Add what&apos;s missing
-        </p>
-        <p className="mt-0.5 text-[11px] text-muted">
-          Say or type it in one go: work done, parts used, customer requests,
-          next steps. We file each in the right spot.
-        </p>
-        <div className="mt-2 flex gap-2">
-          <input
-            value={addText}
-            onChange={(e) => setAddText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && addText.trim() && addRec === "idle")
-                mergeIn(addText.trim());
-            }}
-            placeholder="Type what's missing…"
-            disabled={addRec !== "idle"}
-            className="flex-1 min-w-0 rounded-lg border border-border bg-surface px-3 py-2 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:opacity-60"
-          />
-          <button
-            type="button"
-            onClick={() => addText.trim() && mergeIn(addText.trim())}
-            disabled={!addText.trim() || addRec !== "idle"}
-            className="tt-pop shrink-0 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
-          >
-            Add
-          </button>
-        </div>
-        <div className="mt-2 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={addRec === "recording" ? stopVoice : startVoice}
-            disabled={addRec === "busy"}
-            className={`tt-pop inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition ${
-              addRec === "recording"
-                ? "bg-danger text-white ring-danger"
-                : "bg-surface text-brand ring-border hover:bg-white disabled:opacity-60"
-            }`}
-          >
-            {addRec === "recording" ? (
-              <>
-                <span className="inline-block h-2 w-2 rounded-full bg-white tt-pulse" />
-                Stop &amp; add
-              </>
-            ) : addRec === "busy" ? (
-              "Adding it in…"
-            ) : (
-              "🎙 Or say it instead"
-            )}
-          </button>
-          {addRec === "recording" && (
-            <span className="text-xs text-danger">Listening…</span>
-          )}
-        </div>
-        {addError && <p className="mt-1.5 text-xs text-danger">{addError}</p>}
-      </div>
 
       <div>
         <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
