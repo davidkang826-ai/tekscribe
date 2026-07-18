@@ -6,12 +6,21 @@ import BottomNav from "@/components/BottomNav";
 import SettingsForm from "@/components/SettingsForm";
 import PlanCard from "@/components/PlanCard";
 import DeleteAccountButton from "@/components/DeleteAccountButton";
+import GoogleDriveCard from "@/components/GoogleDriveCard";
 import { planById } from "@/lib/plans";
+import { isGoogleConfigured } from "@/lib/google-drive";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
-export default async function SettingsPage() {
+export default async function SettingsPage(props: {
+  searchParams: Promise<{
+    drive?: string;
+    driveError?: string;
+    deleteError?: string;
+  }>;
+}) {
   if (!isSupabaseConfigured) redirect("/");
+  const { drive, driveError, deleteError } = await props.searchParams;
 
   const supabase = await createClient();
   const {
@@ -40,6 +49,19 @@ export default async function SettingsPage() {
     hasBilling = !!planRow.stripe_customer_id;
   }
   const planName = planById(planId)?.name ?? "Free";
+
+  // Google Drive connection, tolerated if the migration hasn't run yet.
+  let driveConnected = false;
+  let driveEmail: string | null = null;
+  const { data: driveRow, error: driveErr } = await supabase
+    .from("profiles")
+    .select("google_refresh_token, google_drive_email")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (!driveErr && driveRow) {
+    driveConnected = !!driveRow.google_refresh_token;
+    driveEmail = driveRow.google_drive_email ?? null;
+  }
 
   // Notes left this calendar month (only matters on a capped plan like Free).
   const notesLimit = planById(planId)?.notesPerMonth ?? null;
@@ -76,10 +98,33 @@ export default async function SettingsPage() {
           </p>
         </div>
 
+        {drive === "connected" && (
+          <div className="rounded-lg bg-green-50 px-3 py-2.5 text-sm text-success ring-1 ring-green-100">
+            ✓ Google Drive connected. New saved visits back up automatically.
+          </div>
+        )}
+        {driveError && (
+          <div className="rounded-lg bg-red-50 px-3 py-2.5 text-sm text-danger ring-1 ring-red-100">
+            Couldn&apos;t connect Google Drive. Give it another try.
+          </div>
+        )}
+        {deleteError && (
+          <div className="rounded-lg bg-red-50 px-3 py-2.5 text-sm text-danger ring-1 ring-red-100">
+            Couldn&apos;t delete your account just now. Try again, or contact
+            support.
+          </div>
+        )}
+
         <SettingsForm
           displayName={profile?.display_name ?? ""}
           replyTo={profile?.reply_to_email ?? user.email ?? ""}
           businessName={profile?.business_name ?? ""}
+        />
+
+        <GoogleDriveCard
+          connected={driveConnected}
+          email={driveEmail}
+          configured={isGoogleConfigured}
         />
 
         <PlanCard

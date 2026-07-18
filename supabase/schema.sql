@@ -200,3 +200,11 @@ alter table public.profiles add column if not exists stripe_subscription_id text
 
 create index if not exists profiles_stripe_customer_idx
   on public.profiles (stripe_customer_id);
+
+-- ---------------------------------------------------------------------------
+-- Google Drive backup: per-tech OAuth connection. Photos/files mirror into a
+-- "TekScribe Records" folder in THEIR Drive, organized by customer.
+-- ---------------------------------------------------------------------------
+alter table public.profiles add column if not exists google_refresh_token text;
+alter table public.profiles add column if not exists google_drive_email text;
+alter table public.profiles add column if not exists google_drive_folder_id text;

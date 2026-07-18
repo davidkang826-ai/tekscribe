@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { syncNoteToDrive } from "@/lib/drive-sync";
 import type { JobSummary, Attachment } from "@/lib/types";
 
 export type SaveResult = { error?: string; id?: string };
@@ -12,6 +14,7 @@ export async function saveNote(input: {
   summary: JobSummary | null;
   customerEmail?: string;
   customerName?: string;
+  customerPhone?: string;
   attachments?: Attachment[];
 }): Promise<SaveResult> {
   if (!input.transcript?.trim()) return { error: "Nothing to save yet." };
@@ -37,6 +40,11 @@ export async function saveNote(input: {
     .single();
 
   if (error) return { error: error.message };
+
+  // Mirror photos/files into their Google Drive after the response is sent.
+  const userId = user.id;
+  after(() => syncNoteToDrive(userId, input));
+
   return { id: data.id };
 }
 
@@ -49,6 +57,7 @@ export async function updateNote(
     summary: JobSummary | null;
     customerEmail?: string;
     customerName?: string;
+    customerPhone?: string;
     attachments?: Attachment[];
   }
 ): Promise<SaveResult> {
@@ -74,6 +83,11 @@ export async function updateNote(
     .eq("user_id", user.id);
 
   if (error) return { error: error.message };
+
+  // Any newly added photos/files also mirror to Drive (existing ones skip).
+  const userId = user.id;
+  after(() => syncNoteToDrive(userId, input));
+
   return { id };
 }
 

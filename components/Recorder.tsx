@@ -701,6 +701,7 @@ export default function Recorder({
       summary,
       customerName,
       customerEmail,
+      customerPhone,
       attachments: attachments.map(({ path, name, type }) => ({
         path,
         name,
