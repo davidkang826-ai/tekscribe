@@ -12,6 +12,28 @@ import { isGoogleConfigured } from "@/lib/google-drive";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
+/** Turn the driveError code from the OAuth callback into advice a human can
+ *  act on. Unrecognized codes still show, so no failure is ever anonymous. */
+function driveErrorMessage(code: string): string {
+  if (code === "access_denied")
+    return "Google didn't grant access. If you hit Cancel, just try again. If Google said access was blocked, the OAuth app is still in Testing mode — publish it or add yourself as a test user in the Google Cloud console.";
+  if (code === "invalid_client" || code === "unauthorized_client")
+    return "Google rejected the app's credentials. The client ID or secret configured on the server doesn't match the OAuth client — update them and redeploy.";
+  if (code === "redirect_uri_mismatch")
+    return "This site's callback address isn't on the OAuth client's Authorized redirect URIs in the Google Cloud console.";
+  if (code === "invalid_grant")
+    return "The sign-in code expired or was already used. Give it another try.";
+  if (code === "state")
+    return "The security check didn't match — the attempt may have sat too long, or cookies were blocked. Give it another try.";
+  if (code === "nocode")
+    return "Google sent you back without an authorization code. Give it another try.";
+  if (code === "notconfigured")
+    return "Google Drive backup isn't configured on the server yet.";
+  if (code.includes("(403)"))
+    return "Google Drive said no (403). Most likely the Google Drive API isn't enabled for the project in the Google Cloud console.";
+  return `Couldn't connect Google Drive (${code}). Give it another try.`;
+}
+
 export default async function SettingsPage(props: {
   searchParams: Promise<{
     drive?: string;
@@ -107,7 +129,7 @@ export default async function SettingsPage(props: {
         )}
         {driveError && (
           <div className="rounded-lg bg-red-50 px-3 py-2.5 text-sm text-danger ring-1 ring-red-100">
-            Couldn&apos;t connect Google Drive. Give it another try.
+            {driveErrorMessage(driveError)}
           </div>
         )}
         {deleteError && (
