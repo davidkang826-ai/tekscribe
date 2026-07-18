@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import BottomNav from "@/components/BottomNav";
 import SendToCustomer from "@/components/SendToCustomer";
+import { GoogleDriveLogo } from "@/components/GoogleDriveLogo";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { JobSummary, Attachment } from "@/lib/types";
@@ -114,7 +115,7 @@ export default async function NoteDetailPage(props: {
             rel="noreferrer"
             className="tt-pop mt-3 inline-flex items-center gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-medium text-success ring-1 ring-green-100 hover:bg-green-100 transition"
           >
-            ✓ Backed up to Google Drive — view folder ↗
+            ✓ Backed up · <GoogleDriveLogo size={13} /> Open in Google Drive ↗
           </a>
         )}
 
