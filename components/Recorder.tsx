@@ -14,6 +14,28 @@ import {
   countPending,
 } from "@/lib/offline-queue";
 
+// The big record button's mic. Same glyph as the tab bar, scaled up.
+function MicGlyph({ size = 60 }: { size?: number }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="9" y="3" width="6" height="11" rx="3" />
+      <path d="M6 11v1a6 6 0 0 0 12 0v-1" />
+      <line x1="12" y1="19" x2="12" y2="22" />
+      <line x1="8.5" y1="22" x2="15.5" y2="22" />
+    </svg>
+  );
+}
+
 type Phase =
   | "idle"
   | "recording"
@@ -796,7 +818,7 @@ export default function Recorder({
     phase === "idle" || phase === "recording" || phase === "paused";
 
   const statusText: Record<string, string> = {
-    idle: "Tap to record your visit",
+    idle: "30 seconds is plenty",
     recording: "Tap to pause · Hold to finish",
     paused: "Tap to resume · Hold to finish",
   };
@@ -947,11 +969,15 @@ export default function Recorder({
               </svg>
             )}
             <span
-              className={`relative flex items-center justify-center w-36 h-36 rounded-full bg-surface shadow-lg ${
-                isPaused ? "ring-2 ring-brand" : "ring-1 ring-border"
-              } ${isRecording && !holding ? "tt-pulse" : ""}`}
+              className={`relative flex items-center justify-center w-36 h-36 rounded-full shadow-lg transition-colors ${
+                isPaused
+                  ? "bg-surface text-brand ring-2 ring-brand"
+                  : "bg-brand text-white"
+              } ${isRecording && !holding ? "tt-pulse" : ""} ${
+                phase === "idle" ? "tt-idle-breathe" : ""
+              }`}
             >
-              <LogoMark size={84} />
+              <MicGlyph size={60} />
             </span>
           </button>
 

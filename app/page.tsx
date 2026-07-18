@@ -94,24 +94,28 @@ export default async function Home() {
         <Logo size={30} />
       </header>
 
-      <main className="flex-1 w-full max-w-3xl mx-auto px-5 pt-6 pb-28 sm:pt-10">
-        <div className="text-center mb-10">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            {authed && firstName ? `Hi ${firstName}.` : "Ready when you are."}
-          </h1>
-          <p className="mt-2 text-muted max-w-lg mx-auto">
-            Tap the mic and tell me about your visit.
-          </p>
-        </div>
+      <main className="flex-1 flex flex-col w-full max-w-3xl mx-auto px-5 pt-6 pb-28">
+        {/* my-auto centers the greeting + mic in the viewport on tall screens
+            and degrades to normal top flow once content grows past it. */}
+        <div className="my-auto w-full">
+          <div className="text-center mb-10">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+              {authed && firstName ? `Hi ${firstName}.` : "Ready when you are."}
+            </h1>
+            <p className="mt-2 text-muted max-w-lg mx-auto">
+              Tap the mic and tell me about your visit.
+            </p>
+          </div>
 
-        <Recorder
-          canSave={authed}
-          customers={customers}
-          replyTo={replyTo}
-          userId={userId}
-          techName={techName}
-          techPhone={techPhone}
-        />
+          <Recorder
+            canSave={authed}
+            customers={customers}
+            replyTo={replyTo}
+            userId={userId}
+            techName={techName}
+            techPhone={techPhone}
+          />
+        </div>
       </main>
 
       {authed && offerDriveBackup && <DriveBackupPrompt />}

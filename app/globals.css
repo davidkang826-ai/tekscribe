@@ -191,6 +191,14 @@ button:disabled {
     tt-logo-breathe 1.8s ease-in-out 0.85s infinite;
 }
 
+/* Idle record button: a slow, gentle breathe that invites the tap without
+   shouting. Distinct from tt-pulse, the faster heartbeat used while recording. */
+@keyframes tt-idle-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.035); }
+}
+.tt-idle-breathe { animation: tt-idle-breathe 2.6s ease-in-out infinite; }
+
 /* Honor OS-level reduced-motion: swap instantly, no spins or slides. */
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-old(*),
@@ -199,7 +207,8 @@ button:disabled {
     animation-duration: 0s !important;
     animation-delay: 0s !important;
   }
-  .tt-logo-load {
+  .tt-logo-load,
+  .tt-idle-breathe {
     animation: none;
   }
 }
