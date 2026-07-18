@@ -166,16 +166,38 @@ export async function ensureFolder(
   return (await res.json()).id as string;
 }
 
-export async function fileExistsInFolder(
+/** Find a file by exact name inside a folder; returns its id, or null. */
+export async function findFileInFolder(
   accessToken: string,
   name: string,
   parentId: string
-): Promise<boolean> {
+): Promise<string | null> {
   const found = await driveList(
     accessToken,
     `name = '${escapeQ(name)}' and '${escapeQ(parentId)}' in parents and trashed = false`
   );
-  return found.length > 0;
+  return found[0]?.id ?? null;
+}
+
+/** Replace the content of an existing Drive file, keeping its name and id. */
+export async function updateFileContent(
+  accessToken: string,
+  fileId: string,
+  mimeType: string,
+  data: ArrayBuffer
+): Promise<void> {
+  const res = await fetch(
+    `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": mimeType,
+      },
+      body: Buffer.from(data),
+    }
+  );
+  if (!res.ok) throw new Error(`Drive update failed (${res.status})`);
 }
 
 export async function uploadFile(

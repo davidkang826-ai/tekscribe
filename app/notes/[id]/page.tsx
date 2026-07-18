@@ -19,13 +19,38 @@ export default async function NoteDetailPage(props: {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: note } = await supabase
+  // Ask for the Drive-backup columns too, falling back without them on
+  // databases where that migration hasn't run yet.
+  const noteCols =
+    "id, job_title, customer_name, transcript, summary, customer_email, attachments, created_at";
+  type NoteRecord = {
+    id: string;
+    job_title: string | null;
+    customer_name: string | null;
+    transcript: string;
+    summary: unknown;
+    customer_email: string | null;
+    attachments: unknown;
+    created_at: string;
+    drive_folder_id?: string | null;
+    drive_synced_at?: string | null;
+  };
+  let note: NoteRecord | null = null;
+  const withDrive = await supabase
     .from("voice_notes")
-    .select(
-      "id, job_title, customer_name, transcript, summary, customer_email, attachments, created_at"
-    )
+    .select(`${noteCols}, drive_folder_id, drive_synced_at`)
     .eq("id", id)
     .single();
+  if (!withDrive.error) {
+    note = withDrive.data;
+  } else {
+    const { data } = await supabase
+      .from("voice_notes")
+      .select(noteCols)
+      .eq("id", id)
+      .single();
+    note = data;
+  }
   if (!note) notFound();
 
   const { data: profile } = await supabase
@@ -80,6 +105,17 @@ export default async function NoteDetailPage(props: {
         </div>
         {note.customer_name && (
           <p className="mt-1 text-sm text-muted">👤 {note.customer_name}</p>
+        )}
+
+        {note.drive_folder_id && note.drive_synced_at && (
+          <a
+            href={`https://drive.google.com/drive/folders/${note.drive_folder_id}`}
+            target="_blank"
+            rel="noreferrer"
+            className="tt-pop mt-3 inline-flex items-center gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-medium text-success ring-1 ring-green-100 hover:bg-green-100 transition"
+          >
+            ✓ Backed up to Google Drive — view folder ↗
+          </a>
         )}
 
         {attachments.length > 0 && (

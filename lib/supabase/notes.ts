@@ -41,11 +41,13 @@ export async function saveNote(input: {
 
   if (error) return { error: error.message };
 
-  // Mirror photos/files into their Google Drive after the response is sent.
+  // Mirror the note and its photos/files into their Google Drive after the
+  // response is sent.
   const userId = user.id;
-  after(() => syncNoteToDrive(userId, input));
+  const savedId = data.id as string;
+  after(() => syncNoteToDrive(userId, savedId, input));
 
-  return { id: data.id };
+  return { id: savedId };
 }
 
 /** Update an already-saved note in place, used when the tech goes back from
@@ -84,9 +86,10 @@ export async function updateNote(
 
   if (error) return { error: error.message };
 
-  // Any newly added photos/files also mirror to Drive (existing ones skip).
+  // Any newly added photos/files also mirror to Drive (existing ones skip),
+  // and the note document updates in place.
   const userId = user.id;
-  after(() => syncNoteToDrive(userId, input));
+  after(() => syncNoteToDrive(userId, id, input));
 
   return { id };
 }
