@@ -74,6 +74,12 @@ create table if not exists public.voice_notes (
 alter table public.voice_notes add column if not exists customer_name text;
 alter table public.voice_notes add column if not exists attachments jsonb;
 
+-- Google Drive backup receipt: which customer folder this note synced into
+-- and when. Written by the after-save sync; shown in the Archive as a
+-- "View in Drive" link.
+alter table public.voice_notes add column if not exists drive_folder_id text;
+alter table public.voice_notes add column if not exists drive_synced_at timestamptz;
+
 alter table public.voice_notes enable row level security;
 
 drop policy if exists "own notes - select" on public.voice_notes;
