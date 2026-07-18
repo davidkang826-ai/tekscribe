@@ -19,14 +19,19 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
+  const googleError = url.searchParams.get("error");
 
   const cookieStore = await cookies();
   const expectedState = cookieStore.get("tt_google_state")?.value;
   cookieStore.delete("tt_google_state");
 
-  if (!code || !state || !expectedState || state !== expectedState) {
-    redirect("/settings?driveError=1");
-  }
+  // Carry the failure cause to Settings so the tech (and we) can see what
+  // actually went wrong instead of one vague catch-all message.
+  if (googleError)
+    redirect(`/settings?driveError=${encodeURIComponent(googleError)}`);
+  if (!code) redirect("/settings?driveError=nocode");
+  if (!state || !expectedState || state !== expectedState)
+    redirect("/settings?driveError=state");
 
   const supabase = await createClient();
   const {
@@ -37,13 +42,14 @@ export async function GET(req: Request) {
   let refreshToken = "";
   let email = "";
   let folderId = "";
+  let failure = "";
   try {
     const tokens = await exchangeCode(
       code,
       `${requestOrigin(req)}/api/google/callback`
     );
     if (!tokens.access_token || !tokens.refresh_token) {
-      throw new Error(tokens.error || "no tokens");
+      throw new Error(tokens.error || "no_tokens");
     }
     refreshToken = tokens.refresh_token;
     email = emailFromIdToken(tokens.id_token);
@@ -51,8 +57,11 @@ export async function GET(req: Request) {
     folderId = await ensureFolder(tokens.access_token, ROOT_FOLDER_NAME);
   } catch (err) {
     console.error("[google callback]", err);
-    redirect("/settings?driveError=1");
+    failure = err instanceof Error ? err.message : "unknown";
   }
+  // redirect() throws internally, so it must happen outside the try/catch.
+  if (failure)
+    redirect(`/settings?driveError=${encodeURIComponent(failure.slice(0, 80))}`);
 
   await supabase
     .from("profiles")
