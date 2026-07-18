@@ -83,7 +83,11 @@ const TABS = [
 export default function BottomNav() {
   const pathname = usePathname();
   return (
-    <nav className="tt-bottom-nav fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur">
+    <nav
+      className="tt-bottom-nav fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur"
+      // Anchor the tab bar during page transitions: content moves, chrome doesn't.
+      style={{ viewTransitionName: "tt-nav" }}
+    >
       <div className="mx-auto flex max-w-md items-stretch justify-around">
         {TABS.map(({ href, label, Icon, match }) => {
           const active = match(pathname);

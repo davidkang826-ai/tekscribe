@@ -20,6 +20,8 @@ export async function signUp(
   const password = String(formData.get("password") ?? "");
   const businessName = String(formData.get("business_name") ?? "").trim();
 
+  if (!businessName)
+    return { error: "Please enter your business name (or your own name)." };
   if (!email || !password) return { error: "Email and password are required." };
   if (password.length < 8)
     return { error: "Password must be at least 8 characters." };
@@ -31,7 +33,7 @@ export async function signUp(
     password,
     options: {
       emailRedirectTo: `${origin}/auth/confirm`,
-      data: { business_name: businessName || null },
+      data: { business_name: businessName },
     },
   });
 

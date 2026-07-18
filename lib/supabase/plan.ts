@@ -18,3 +18,20 @@ export async function selectFreePlan(): Promise<void> {
 
   redirect("/");
 }
+
+/** Leave the plans screen without changing anything — the escape hatch so
+ *  the paywall never traps anyone. Marks the screen as seen and goes home. */
+export async function keepCurrentPlan(): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  await supabase
+    .from("profiles")
+    .update({ plan_selected: true })
+    .eq("id", user.id);
+
+  redirect("/");
+}

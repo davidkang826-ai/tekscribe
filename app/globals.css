@@ -143,6 +143,67 @@ button:disabled {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* ---------------------------------------------------------------------------
+   Page transitions (React <ViewTransition>, class "tt-page")
+   Old page fades out fast; new page fades in with a gentle 8px lift.
+   Asymmetric timing keeps it snappy: exit 120ms, enter 200ms.
+--------------------------------------------------------------------------- */
+::view-transition-old(.tt-page) {
+  animation: 120ms ease-in both tt-vt-fade reverse;
+}
+::view-transition-new(.tt-page) {
+  animation:
+    200ms ease-out 60ms both tt-vt-fade,
+    260ms cubic-bezier(0.22, 1, 0.36, 1) both tt-vt-lift;
+}
+@keyframes tt-vt-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes tt-vt-lift {
+  from { transform: translateY(8px); }
+  to { transform: translateY(0); }
+}
+
+/* The bottom tab bar stays put while pages transition under it. */
+::view-transition-group(tt-nav) {
+  animation: none;
+  z-index: 60;
+}
+::view-transition-old(tt-nav) { display: none; }
+::view-transition-new(tt-nav) { animation: none; }
+
+/* Loading screen logo: spins up quickly, decelerates, and settles at full
+   size — then breathes softly if the wait drags on. */
+@keyframes tt-logo-spin-settle {
+  0% { transform: rotate(0deg) scale(0.6); opacity: 0; }
+  55% { opacity: 1; }
+  70% { transform: rotate(330deg) scale(1.08); }
+  100% { transform: rotate(360deg) scale(1); opacity: 1; }
+}
+@keyframes tt-logo-breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.85; }
+}
+.tt-logo-load {
+  animation:
+    tt-logo-spin-settle 0.85s cubic-bezier(0.22, 1, 0.36, 1) both,
+    tt-logo-breathe 1.8s ease-in-out 0.85s infinite;
+}
+
+/* Honor OS-level reduced-motion: swap instantly, no spins or slides. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+  .tt-logo-load {
+    animation: none;
+  }
+}
+
 /* Press-and-hold-to-end: a ring that fills over 2s while the button is held */
 @keyframes tt-hold-fill {
   from { stroke-dashoffset: 534; }

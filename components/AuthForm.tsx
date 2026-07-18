@@ -50,10 +50,11 @@ export default function AuthForm({
           <form action={formAction} className="space-y-3">
             {isSignup && (
               <Field
-                label="Business name (optional)"
+                label="Business name (or your name)"
                 name="business_name"
                 type="text"
                 placeholder="Mike's Plumbing"
+                required
               />
             )}
             <Field
