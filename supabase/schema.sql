@@ -102,6 +102,42 @@ create index if not exists voice_notes_user_created_idx
   on public.voice_notes (user_id, created_at desc);
 
 -- ---------------------------------------------------------------------------
+-- scheduled_visits: next visits the tech put on the calendar from a note's
+-- "schedule next visit" step. Powers the Daily Digest tab.
+-- ---------------------------------------------------------------------------
+create table if not exists public.scheduled_visits (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  note_id uuid references public.voice_notes (id) on delete set null,
+  customer_name text,
+  reason text, -- short "what this visit is about"
+  todo text, -- a sentence or two on what to do
+  scheduled_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.scheduled_visits enable row level security;
+
+drop policy if exists "own visits - select" on public.scheduled_visits;
+create policy "own visits - select" on public.scheduled_visits
+  for select using (auth.uid() = user_id);
+
+drop policy if exists "own visits - insert" on public.scheduled_visits;
+create policy "own visits - insert" on public.scheduled_visits
+  for insert with check (auth.uid() = user_id);
+
+drop policy if exists "own visits - update" on public.scheduled_visits;
+create policy "own visits - update" on public.scheduled_visits
+  for update using (auth.uid() = user_id);
+
+drop policy if exists "own visits - delete" on public.scheduled_visits;
+create policy "own visits - delete" on public.scheduled_visits
+  for delete using (auth.uid() = user_id);
+
+create index if not exists scheduled_visits_user_time_idx
+  on public.scheduled_visits (user_id, scheduled_at);
+
+-- ---------------------------------------------------------------------------
 -- templates: reusable documents (invoice, work order, inspection report...)
 -- that the AI fills out from the spoken note. Owned per technician.
 -- ---------------------------------------------------------------------------

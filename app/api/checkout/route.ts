@@ -65,7 +65,7 @@ export async function POST(req: Request) {
       metadata: { userId: user.id, planId: plan.id },
       subscription_data: { metadata: { userId: user.id, planId: plan.id } },
       allow_promotion_codes: true,
-      success_url: `${origin}/plans?success=1`,
+      success_url: `${origin}/plans?success=1&plan=${plan.id}`,
       cancel_url: `${origin}/plans?canceled=1`,
     });
     return Response.json({ url: session.url });

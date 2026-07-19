@@ -18,10 +18,18 @@ function contactLine(contact?: Contact): string {
   return "";
 }
 
+/** Next steps a customer should see: everything except the tech's own
+ *  shopping list ("Buy: …" items stay internal). */
+function customerNextSteps(summary: JobSummary): string[] {
+  return summary.nextSteps.filter((s) => !/^buy\s*:/i.test(s.trim()));
+}
+
 function buildEmailBody(
   summary: JobSummary,
   opts: { signoffName?: string; contact?: Contact } = {}
 ): string {
+  // The AI message already acknowledges the customer's requests in flowing
+  // sentences, so there's no separate "you asked us to note" bullet list.
   const lines: string[] = [];
   if (summary.customerMessage) lines.push(summary.customerMessage, "");
   if (summary.workDone.length) {
@@ -29,14 +37,10 @@ function buildEmailBody(
     for (const item of summary.workDone) lines.push(`• ${item}`);
     lines.push("");
   }
-  if (summary.customerRequests?.length) {
-    lines.push("What you asked us to note:");
-    for (const item of summary.customerRequests) lines.push(`• ${item}`);
-    lines.push("");
-  }
-  if (summary.nextSteps.length) {
+  const next = customerNextSteps(summary);
+  if (next.length) {
     lines.push("Next steps:");
-    for (const item of summary.nextSteps) lines.push(`• ${item}`);
+    for (const item of next) lines.push(`• ${item}`);
     lines.push("");
   }
   lines.push("Thank you for your business.");
@@ -49,13 +53,10 @@ function buildEmailBody(
 function buildSmsBody(summary: JobSummary, contact?: Contact): string {
   const lines: string[] = [];
   if (summary.customerMessage) lines.push(summary.customerMessage);
-  if (summary.customerRequests?.length) {
-    lines.push("", "You asked us to note:");
-    for (const item of summary.customerRequests) lines.push(`- ${item}`);
-  }
-  if (summary.nextSteps.length) {
+  const next = customerNextSteps(summary);
+  if (next.length) {
     lines.push("", "Next steps:");
-    for (const item of summary.nextSteps) lines.push(`- ${item}`);
+    for (const item of next) lines.push(`- ${item}`);
   }
   const reach = contactLine(contact);
   if (reach) lines.push("", reach);
