@@ -10,6 +10,8 @@ export async function scheduleVisit(input: {
   customerName?: string;
   reason?: string;
   todo?: string;
+  kind?: "visit" | "call";
+  address?: string;
   scheduledAtIso: string;
 }): Promise<{ error?: string }> {
   const scheduledAt = new Date(input.scheduledAtIso);
@@ -21,15 +23,22 @@ export async function scheduleVisit(input: {
   } = await supabase.auth.getUser();
   if (!user) return { error: "Sign in first." };
 
-  const { error } = await supabase.from("scheduled_visits").insert({
+  const row = {
     user_id: user.id,
     note_id: input.noteId || null,
     customer_name: input.customerName?.trim() || null,
     reason: input.reason?.trim() || null,
     todo: input.todo?.trim() || null,
+    kind: input.kind === "call" ? "call" : "visit",
+    address: input.address?.trim() || null,
     scheduled_at: scheduledAt.toISOString(),
-  });
+  };
+  const { error } = await supabase.from("scheduled_visits").insert(row);
+  if (!error) return {};
 
-  if (error) return { error: error.message };
+  // Databases missing the newer kind/address columns still get the visit.
+  const { kind: _k, address: _a, ...legacy } = row;
+  const retry = await supabase.from("scheduled_visits").insert(legacy);
+  if (retry.error) return { error: retry.error.message };
   return {};
 }

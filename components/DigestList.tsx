@@ -12,8 +12,28 @@ type Visit = {
   customer_name: string | null;
   reason: string | null;
   todo: string | null;
+  kind?: string | null;
+  address?: string | null;
   scheduled_at: string;
 };
+
+type MapPref = "google" | "apple";
+const MAP_KEY = "tekscribe.map-pref";
+
+function readMapPref(): MapPref {
+  try {
+    return localStorage.getItem(MAP_KEY) === "apple" ? "apple" : "google";
+  } catch {
+    return "google";
+  }
+}
+
+function mapUrl(service: MapPref, address: string): string {
+  const q = encodeURIComponent(address);
+  return service === "apple"
+    ? `https://maps.apple.com/?q=${q}`
+    : `https://www.google.com/maps/search/?api=1&query=${q}`;
+}
 
 type LastVisit = {
   noteId: string;
@@ -32,6 +52,18 @@ function brief(items: string[] | undefined, n: number): string {
 export default function DigestList() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [needsMigration, setNeedsMigration] = useState(false);
+  // Lazy init: runs on the client only after hydration-safe loading UI, and
+  // the server fallback inside readMapPref covers SSR.
+  const [mapPref, setMapPref] = useState<MapPref>(() => readMapPref());
+
+  function chooseMap(service: MapPref) {
+    setMapPref(service);
+    try {
+      localStorage.setItem(MAP_KEY, service);
+    } catch {
+      // fine
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -43,15 +75,29 @@ export default function DigestList() {
       const dayEnd = new Date(dayStart);
       dayEnd.setDate(dayEnd.getDate() + 1);
 
-      const { data: visits, error } = await supabase
+      // Ask for kind/address too, falling back for databases where that
+      // part of the migration hasn't run yet.
+      let visits: Visit[] | null = null;
+      const full = await supabase
         .from("scheduled_visits")
-        .select("id, note_id, customer_name, reason, todo, scheduled_at")
+        .select("id, note_id, customer_name, reason, todo, kind, address, scheduled_at")
         .gte("scheduled_at", dayStart.toISOString())
         .lt("scheduled_at", dayEnd.toISOString())
         .order("scheduled_at", { ascending: true });
+      if (!full.error) {
+        visits = (full.data ?? []) as Visit[];
+      } else {
+        const legacy = await supabase
+          .from("scheduled_visits")
+          .select("id, note_id, customer_name, reason, todo, scheduled_at")
+          .gte("scheduled_at", dayStart.toISOString())
+          .lt("scheduled_at", dayEnd.toISOString())
+          .order("scheduled_at", { ascending: true });
+        if (!legacy.error) visits = (legacy.data ?? []) as Visit[];
+      }
 
       if (cancelled) return;
-      if (error) {
+      if (visits === null) {
         // Most likely the scheduled_visits migration hasn't run yet.
         setNeedsMigration(true);
         setRows([]);
@@ -133,7 +179,13 @@ export default function DigestList() {
         >
           <div className="flex items-baseline justify-between gap-3">
             <h3 className="font-semibold text-foreground">
+              {v.kind === "call" ? "📞 " : ""}
               {v.customer_name || "No customer"}
+              {v.kind === "call" && (
+                <span className="ml-2 rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand align-middle">
+                  Call
+                </span>
+              )}
             </h3>
             <time className="text-sm font-semibold text-brand whitespace-nowrap">
               {new Date(v.scheduled_at).toLocaleTimeString(undefined, {
@@ -143,6 +195,32 @@ export default function DigestList() {
             </time>
           </div>
           {v.reason && <p className="mt-0.5 text-xs text-muted">{v.reason}</p>}
+
+          {v.address && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+              <span className="text-muted">📍 {v.address}</span>
+              <a
+                href={mapUrl(mapPref, v.address)}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => chooseMap(mapPref)}
+                className="font-medium text-brand hover:underline"
+              >
+                Open in {mapPref === "apple" ? "Apple" : "Google"} Maps ↗
+              </a>
+              <a
+                href={mapUrl(mapPref === "apple" ? "google" : "apple", v.address)}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() =>
+                  chooseMap(mapPref === "apple" ? "google" : "apple")
+                }
+                className="text-xs text-muted hover:text-foreground hover:underline"
+              >
+                or {mapPref === "apple" ? "Google" : "Apple"} Maps
+              </a>
+            </div>
+          )}
 
           {v.todo && (
             <p className="mt-3 text-[15px] text-foreground">
