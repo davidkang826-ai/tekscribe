@@ -295,7 +295,7 @@ function NoteCard({ note }: { note: ArchiveNote }) {
               onClick={(e) => e.stopPropagation()}
               className="mt-3 inline-block text-sm font-medium text-brand hover:underline"
             >
-              Open full note →
+              Open full note
             </Link>
           </div>
         )}

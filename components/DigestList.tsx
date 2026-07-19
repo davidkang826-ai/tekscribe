@@ -247,7 +247,7 @@ export default function DigestList() {
               href={`/notes/${v.note_id || v.last?.noteId}`}
               className="mt-3 inline-block text-xs font-medium text-brand hover:underline"
             >
-              Previous visit note →
+              Previous visit note
             </Link>
           )}
         </li>

@@ -7,9 +7,18 @@ type Channel = "email" | "text";
 
 type Contact = { phone?: string; email?: string };
 
+/** US-style (###) ###-#### when the number has 10 digits; otherwise as-is. */
+function formatPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  const ten =
+    digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+  if (ten.length !== 10) return raw.trim();
+  return `(${ten.slice(0, 3)}) ${ten.slice(3, 6)}-${ten.slice(6)}`;
+}
+
 /** A closing line so the customer knows how to reach the tech for follow-ups. */
 function contactLine(contact?: Contact): string {
-  const phone = contact?.phone?.trim();
+  const phone = contact?.phone?.trim() ? formatPhone(contact.phone) : "";
   const email = contact?.email?.trim();
   if (phone && email)
     return `If you have any follow-up questions, reach me at ${phone} or ${email}.`;
@@ -43,9 +52,9 @@ function buildEmailBody(
     for (const item of next) lines.push(`• ${item}`);
     lines.push("");
   }
-  lines.push("Thank you for your business.");
   const reach = contactLine(opts.contact);
-  if (reach) lines.push("", reach);
+  if (reach) lines.push(reach, "");
+  lines.push("Thank you for allowing me to serve you!");
   if (opts.signoffName) lines.push("", "Best,", opts.signoffName);
   return lines.join("\n");
 }
@@ -60,6 +69,7 @@ function buildSmsBody(summary: JobSummary, contact?: Contact): string {
   }
   const reach = contactLine(contact);
   if (reach) lines.push("", reach);
+  lines.push("", "Thank you for allowing me to serve you!");
   return lines.join("\n");
 }
 
@@ -70,6 +80,7 @@ export default function SendToCustomer({
   defaultCustomerPhone = "",
   techName = "",
   techPhone = "",
+  onCustomerMessageChange,
 }: {
   summary: JobSummary;
   defaultReplyTo?: string;
@@ -77,17 +88,21 @@ export default function SendToCustomer({
   defaultCustomerPhone?: string;
   techName?: string;
   techPhone?: string;
+  /** When provided, the preview offers in-place editing of the customer
+   *  message (the edit writes back to the live note). */
+  onCustomerMessageChange?: (message: string) => void;
 }) {
   const [channel, setChannel] = useState<Channel>("email");
   const [email, setEmail] = useState(defaultCustomerEmail);
   const [phone, setPhone] = useState(defaultCustomerPhone);
   const [subject, setSubject] = useState(
-    `Your ${summary.jobTitle} summary`
+    `Your ${summary.jobTitle} Summary`
   );
   const [copied, setCopied] = useState(false);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [editingMsg, setEditingMsg] = useState(false);
 
   // Where customer replies go. Defaults to the tech's saved reply-to; they can
   // change it for this send.
@@ -278,9 +293,35 @@ export default function SendToCustomer({
           <summary className="text-xs text-muted cursor-pointer select-none">
             Preview message
           </summary>
-          <pre className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-foreground font-sans">
-            {isEmail ? emailBody : smsBody}
-          </pre>
+          {onCustomerMessageChange && (
+            <div className="mt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setEditingMsg((v) => !v)}
+                className="text-xs font-medium text-brand hover:underline"
+              >
+                {editingMsg ? "✓ Done" : "✏️ Edit message"}
+              </button>
+            </div>
+          )}
+          {editingMsg && onCustomerMessageChange ? (
+            <>
+              <textarea
+                value={summary.customerMessage}
+                onChange={(e) => onCustomerMessageChange(e.target.value)}
+                rows={5}
+                className="mt-1 w-full rounded-lg border border-border bg-surface p-3 text-[14px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/30"
+              />
+              <p className="mt-1 text-xs text-muted">
+                You&apos;re editing your message to the customer. The rest of
+                the preview updates automatically.
+              </p>
+            </>
+          ) : (
+            <pre className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-foreground font-sans">
+              {isEmail ? emailBody : smsBody}
+            </pre>
+          )}
         </details>
 
         {sendError && (

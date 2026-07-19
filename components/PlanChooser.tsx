@@ -132,7 +132,7 @@ export default function PlanChooser({
                         type="submit"
                         className="mt-1 text-xs font-medium text-brand hover:underline"
                       >
-                        Stick with my plan →
+                        Stick with my plan
                       </button>
                     </form>
                   </div>
