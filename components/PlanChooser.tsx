@@ -103,7 +103,7 @@ export default function PlanChooser({
               </div>
               <p className="h-4 text-[11px] text-muted">
                 {t.id !== "free" && billing === "yearly"
-                  ? "billed yearly"
+                  ? `$${t.priceYearly * 12} billed yearly`
                   : t.id !== "free"
                     ? "billed monthly"
                     : "free forever"}
