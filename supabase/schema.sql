@@ -112,9 +112,15 @@ create table if not exists public.scheduled_visits (
   customer_name text,
   reason text, -- short "what this visit is about"
   todo text, -- a sentence or two on what to do
+  kind text, -- 'visit' (on-site) or 'call' (phone reminder)
+  address text, -- where the visit is; also the calendar event location
   scheduled_at timestamptz not null,
   created_at timestamptz not null default now()
 );
+
+-- For databases created before kind/address existed:
+alter table public.scheduled_visits add column if not exists kind text;
+alter table public.scheduled_visits add column if not exists address text;
 
 alter table public.scheduled_visits enable row level security;
 

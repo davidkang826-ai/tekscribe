@@ -63,6 +63,9 @@ export default function ScheduleNextVisit({
   const [when, setWhen] = useState(defaultWhen);
   const [busy, setBusy] = useState(false);
   const [pref, setPref] = useState<CalPref | null>(readPref);
+  // On-site visit, or just a reminder to call the customer.
+  const [kind, setKind] = useState<"visit" | "call">("visit");
+  const [address, setAddress] = useState("");
 
   // What the next visit is for, from the note's next steps (purchases are the
   // tech's own list, so they stay out of the calendar title but keep the
@@ -84,16 +87,18 @@ export default function ScheduleNextVisit({
 
   function eventPieces() {
     const start = new Date(when);
-    const end = new Date(start.getTime() + 60 * 60 * 1000);
-    const title = customerName
-      ? `Next visit: ${customerName}`
-      : `Next visit: ${jobTitle}`;
+    // A call reminder is a 15-minute block; an on-site visit reserves an hour.
+    const minutes = kind === "call" ? 15 : 60;
+    const end = new Date(start.getTime() + minutes * 60 * 1000);
+    const who = customerName || jobTitle;
+    const title = kind === "call" ? `Call ${who}` : `Next visit: ${who}`;
     const lines = [reason];
     if (todo.trim()) lines.push(`To do: ${todo.trim()}`);
-    if (bringList) lines.push(`Bring: ${bringList}`);
+    if (kind === "visit" && bringList) lines.push(`Bring: ${bringList}`);
     if (noteId)
       lines.push(`Previous visit in TekScribe: ${window.location.origin}/notes/${noteId}`);
-    return { start, end, title, description: lines.join("\n") };
+    const location = kind === "visit" ? address.trim() : "";
+    return { start, end, title, description: lines.join("\n"), location };
   }
 
   async function saveToDigest(start: Date) {
@@ -103,6 +108,8 @@ export default function ScheduleNextVisit({
         customerName,
         reason,
         todo: todo.trim(),
+        kind,
+        address: kind === "visit" ? address.trim() : "",
         scheduledAtIso: start.toISOString(),
       });
     } catch {
@@ -119,13 +126,14 @@ export default function ScheduleNextVisit({
     } catch {
       // fine
     }
-    const { start, end, title, description } = eventPieces();
+    const { start, end, title, description, location } = eventPieces();
     const p = new URLSearchParams({
       action: "TEMPLATE",
       text: title,
       dates: `${calStamp(start)}/${calStamp(end)}`,
       details: description,
     });
+    if (location) p.set("location", location);
     window.open(`https://calendar.google.com/calendar/render?${p}`, "_blank");
     await saveToDigest(start);
     setBusy(false);
@@ -141,7 +149,7 @@ export default function ScheduleNextVisit({
     } catch {
       // fine
     }
-    const { start, end, title, description } = eventPieces();
+    const { start, end, title, description, location } = eventPieces();
     const ics = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
@@ -152,6 +160,7 @@ export default function ScheduleNextVisit({
       `DTSTART:${calStamp(start)}`,
       `DTEND:${calStamp(end)}`,
       `SUMMARY:${icsEscape(title)}`,
+      ...(location ? [`LOCATION:${icsEscape(location)}`] : []),
       `DESCRIPTION:${icsEscape(description)}`,
       "END:VEVENT",
       "END:VCALENDAR",
@@ -212,6 +221,48 @@ export default function ScheduleNextVisit({
           <p className="mt-1 text-sm text-muted">👤 {customerName}</p>
         ) : null}
         <p className="mt-0.5 text-sm text-muted">{reason}</p>
+
+        {/* On-site visit, or just a nudge to pick up the phone */}
+        <div className="mt-4 inline-flex rounded-full bg-slate-100 p-1">
+          {(
+            [
+              ["visit", "🔧 On-site visit"],
+              ["call", "📞 Reminder to call"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setKind(k)}
+              className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
+                kind === k
+                  ? "bg-surface text-foreground shadow-sm"
+                  : "text-muted hover:text-foreground"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {kind === "visit" && (
+          <div className="mt-3">
+            <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+              Client address (optional)
+            </label>
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="123 Main St, Seattle, WA"
+              autoComplete="street-address"
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+            />
+            <p className="mt-1 text-xs text-muted">
+              Goes on the calendar event and the Daily Digest, with a map link.
+            </p>
+          </div>
+        )}
 
         <div className="mt-4">
           <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
