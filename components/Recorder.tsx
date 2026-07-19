@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LogoMark } from "./Logo";
 import SendToCustomer from "./SendToCustomer";
+import ScheduleNextVisit from "./ScheduleNextVisit";
 import { saveNote, updateNote } from "@/lib/supabase/notes";
 import { upsertCustomer } from "@/lib/supabase/customers";
 import { createClient } from "@/lib/supabase/client";
@@ -48,8 +49,9 @@ type Phase =
   | "summarized" // Steps 2-4: review the note, send, done
   | "confirmDelete";
 
-// Steps within the "summarized" phase: review the note, send, then done.
-type ReviewStep = "confirm" | "send" | "done";
+// Steps within the "summarized" phase: review the note, send, offer to
+// schedule the next visit, then done.
+type ReviewStep = "confirm" | "send" | "schedule" | "done";
 
 type Attach = Attachment & { preview?: string };
 
@@ -57,6 +59,7 @@ const STEP_LABELS = [
   "Check the transcript",
   "Review the note",
   "Send to customer",
+  "Schedule next visit",
 ];
 
 function formatTime(s: number) {
@@ -101,46 +104,6 @@ async function scaleImageToBlob(
   );
 }
 
-/** Types text out with a blinking cursor. Chunk size scales with length so
- *  the whole reveal takes ~1s no matter how long the message is — the flow's
- *  next buttons wait on this, so it must never feel stuck. */
-function Typewriter({
-  text,
-  speed = 12,
-  onDone,
-}: {
-  text: string;
-  speed?: number;
-  onDone?: () => void;
-}) {
-  const [n, setN] = useState(0);
-  const doneRef = useRef(false);
-  const perTick = Math.max(1, Math.ceil(text.length / 80));
-
-  useEffect(() => {
-    setN(0);
-    doneRef.current = false;
-  }, [text]);
-
-  useEffect(() => {
-    if (n < text.length) {
-      const id = setTimeout(() => setN((v) => v + perTick), speed);
-      return () => clearTimeout(id);
-    }
-    if (!doneRef.current && text.length > 0) {
-      doneRef.current = true;
-      onDone?.();
-    }
-  }, [n, text, speed, perTick, onDone]);
-
-  return (
-    <span>
-      {text.slice(0, n)}
-      {n < text.length && <span className="tt-cursor">▍</span>}
-    </span>
-  );
-}
-
 function StepIndicator({ current }: { current: number }) {
   return (
     <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
@@ -182,7 +145,7 @@ export default function Recorder({
   const [transcript, setTranscript] = useState("");
   const [summary, setSummary] = useState<JobSummary | null>(null);
   const [noteId, setNoteId] = useState<string | null>(null);
-  const [writingDone, setWritingDone] = useState(false);
+  const [editingMsg, setEditingMsg] = useState(false);
   const [reviewStep, setReviewStep] = useState<ReviewStep>("confirm");
   const [archiveState, setArchiveState] = useState<"idle" | "saving" | "saved">(
     "idle"
@@ -236,20 +199,11 @@ export default function Recorder({
     timerRef.current = null;
   };
 
-  // Failsafe: the step-2 buttons wait for the typewriter reveal, and browsers
-  // throttle its timers in background tabs. Whatever happens, unlock the flow
-  // shortly after the note appears so nobody is ever stuck on step 2.
-  useEffect(() => {
-    if (phase !== "summarized" || writingDone) return;
-    const id = setTimeout(() => setWritingDone(true), 2500);
-    return () => clearTimeout(id);
-  }, [phase, writingDone]);
-
   const resetAll = () => {
     setTranscript("");
     setSummary(null);
     setNoteId(null);
-    setWritingDone(false);
+    setEditingMsg(false);
     setError(null);
     setCustomerName("");
     setCustomerEmail("");
@@ -415,7 +369,7 @@ export default function Recorder({
     }
   }, []);
 
-  // --- Tap = pause/resume, press-and-hold 1.5s = end -----------------------
+  // --- Tap = pause/resume, press-and-hold 0.75s = end ----------------------
   const clearHold = () => {
     if (holdTimerRef.current) {
       clearTimeout(holdTimerRef.current);
@@ -434,7 +388,7 @@ export default function Recorder({
       setHolding(false);
       if (mediaRecorderRef.current?.state === "recording") pauseRecording();
       setEndConfirm(true);
-    }, 1500);
+    }, 750);
   }
 
   function onRecordPointerEnd() {
@@ -574,7 +528,6 @@ export default function Recorder({
       setSummary(sum);
       setEditing(false);
       setMessageDirty(false);
-      setWritingDone(!sum.customerMessage);
       setReviewStep("confirm");
       setPhase("summarized");
     } catch (err) {
@@ -843,24 +796,17 @@ export default function Recorder({
           ? 2
           : reviewStep === "send"
             ? 3
-            : 0
+            : reviewStep === "schedule"
+              ? 4
+              : 0
         : 0;
 
-  // Three media buttons: take a photo, upload a photo, upload a file.
+  // One button covers it: photos and files go through the same upload path.
   function mediaButtons() {
     return (
       <div className="flex flex-wrap items-center justify-center gap-2">
         <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
-          🖼 Photo
-          <input
-            type="file"
-            accept="image/*"
-            onChange={addAttachment}
-            className="hidden"
-          />
-        </label>
-        <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
-          📎 File
+          📎 Upload Photo or File
           <input
             type="file"
             accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
@@ -1311,34 +1257,55 @@ export default function Recorder({
                     items={summary.nextSteps}
                   />
 
-                  {(summary.customerMessage || refreshingMsg) && (
-                    <div className="mt-4 rounded-xl bg-brand-50 p-4">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-brand mb-1.5">
-                        Customer message
-                      </div>
-                      {refreshingMsg ? (
-                        <p className="inline-flex items-center gap-2 text-sm font-medium text-brand">
-                          <LogoMark size={18} className="tt-logo-load" />
-                          Updating to match your edits…
-                        </p>
-                      ) : (
-                        <p className="tt-fade-in text-[15px] leading-relaxed text-foreground">
-                          {writingDone ? (
-                            summary.customerMessage
-                          ) : (
-                            <Typewriter
-                              text={summary.customerMessage}
-                              onDone={() => setWritingDone(true)}
-                            />
+                  {/* The message to the customer belongs to the send step;
+                      step 2 stays focused on checking the note itself. */}
+                  {reviewStep === "send" &&
+                    (summary.customerMessage || refreshingMsg) && (
+                      <div className="mt-4 rounded-xl bg-brand-50 p-4">
+                        <div className="mb-1.5 flex items-center justify-between gap-2">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-brand">
+                            Customer message
+                          </div>
+                          {!refreshingMsg && (
+                            <button
+                              type="button"
+                              onClick={() => setEditingMsg((v) => !v)}
+                              className="tt-pop text-xs font-medium text-brand hover:underline"
+                            >
+                              {editingMsg ? "✓ Done" : "✏️ Edit"}
+                            </button>
                           )}
-                        </p>
-                      )}
-                    </div>
-                  )}
+                        </div>
+                        {refreshingMsg ? (
+                          <p className="inline-flex items-center gap-2 text-sm font-medium text-brand">
+                            <LogoMark size={18} className="tt-logo-load" />
+                            Updating to match your edits…
+                          </p>
+                        ) : editingMsg ? (
+                          <textarea
+                            value={summary.customerMessage}
+                            onChange={(e) => {
+                              setSummary((s) =>
+                                s
+                                  ? { ...s, customerMessage: e.target.value }
+                                  : s
+                              );
+                              setMessageDirty(true);
+                            }}
+                            rows={5}
+                            className="w-full rounded-lg border border-border bg-surface p-3 text-[15px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/30"
+                          />
+                        ) : (
+                          <p className="tt-fade-in text-[15px] leading-relaxed text-foreground">
+                            {summary.customerMessage}
+                          </p>
+                        )}
+                      </div>
+                    )}
                 </>
               )}
 
-              {writingDone && !editing && (
+              {!editing && (
                 <div className="tt-fade-in">
                   {/* Step 2: review, add anything missed, confirm */}
                   {reviewStep === "confirm" && (
@@ -1379,7 +1346,6 @@ export default function Recorder({
                             type="button"
                             onClick={() => {
                               editSnapshotRef.current = JSON.stringify(summary);
-                              setWritingDone(true);
                               setEditing(true);
                             }}
                             disabled={detailRec !== "idle"}
@@ -1521,13 +1487,24 @@ export default function Recorder({
                       />
                       <div className="mt-5 border-t border-border pt-4 text-center">
                         <button
-                          onClick={() => setReviewStep("done")}
+                          onClick={() => setReviewStep("schedule")}
                           className="tt-pop inline-flex items-center gap-2 rounded-xl bg-surface px-6 py-3 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
                         >
                           I&apos;m done →
                         </button>
                       </div>
                     </div>
+                  )}
+
+                  {/* Step 4: offer to put the next visit on the calendar */}
+                  {reviewStep === "schedule" && (
+                    <ScheduleNextVisit
+                      customerName={customerName}
+                      jobTitle={summary.jobTitle}
+                      nextSteps={summary.nextSteps}
+                      noteId={noteId}
+                      onDone={() => setReviewStep("done")}
+                    />
                   )}
                 </div>
               )}

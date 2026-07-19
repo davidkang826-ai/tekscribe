@@ -9,8 +9,8 @@ const SYSTEM_PROMPT = `You write the short customer-facing message for a field-s
 Rules:
 - One short, warm, professional paragraph addressed to the HOMEOWNER/CUSTOMER. Plain language, no jargon.
 - When a technician name is given, it MUST open with a greeting from them by name, e.g. "Hi, it's {name}. Thanks again for letting me help you today." Without a name, open warmly without one.
-- Summarize the work done, and mention any next steps (including anything being picked up or ordered) so the customer knows what happens next.
-- If there are customer requests, acknowledge them so the customer knows they were heard.
+- Summarize the work done, and mention any next steps so the customer knows what happens next. Never mention parts or items the technician plans to buy, order, or pick up ("Buy:" items); purchases are internal notes, not customer information.
+- Weave any customer requests into flowing sentences so the customer knows they were heard, e.g. "As you asked during the visit, we'll schedule the next visit for Tuesday morning." Never use bullet points or lists.
 - Use ONLY facts from the sections provided. Never invent details, prices, names, or dates.
 - Do not use em dashes. Use commas or separate sentences.
 - Return JSON only, in the shape {"customerMessage": "..."}.`;

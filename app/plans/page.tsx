@@ -7,13 +7,14 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { isStripeConfigured } from "@/lib/stripe";
 import { planDisplays, planById } from "@/lib/plans";
-import { keepCurrentPlan } from "@/lib/supabase/plan";
 
 export default async function PlansPage(props: {
-  searchParams: Promise<{ success?: string; canceled?: string }>;
+  searchParams: Promise<{ success?: string; canceled?: string; plan?: string }>;
 }) {
   if (!isSupabaseConfigured) redirect("/");
-  const { success } = await props.searchParams;
+  const { success, plan: chosenParam } = await props.searchParams;
+  // Which plan they just bought, for the success screen ("…TekScribe Pro").
+  const chosenName = chosenParam ? planById(chosenParam)?.name : undefined;
 
   const supabase = await createClient();
   const {
@@ -38,7 +39,7 @@ export default async function PlansPage(props: {
         </Link>
       </header>
 
-      <main className="flex-1 w-full max-w-3xl mx-auto px-5 pt-6 pb-44">
+      <main className="flex-1 w-full max-w-3xl mx-auto px-5 pt-6 pb-28">
         {success ? (
           <div className="mx-auto max-w-md rounded-2xl border border-border bg-surface p-8 text-center shadow-sm">
             <div className="text-4xl mb-2">🎉</div>
@@ -50,7 +51,7 @@ export default async function PlansPage(props: {
               href="/"
               className="tt-pop mt-6 inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-white font-semibold shadow-sm hover:bg-brand-600 transition"
             >
-              Start using TekScribe →
+              Start using TekScribe{chosenName ? ` ${chosenName}` : ""} →
             </Link>
           </div>
         ) : (
@@ -71,30 +72,6 @@ export default async function PlansPage(props: {
           </>
         )}
       </main>
-
-      {/* Always-visible way out: nobody has to pick a paid plan to keep
-          using the app. Keeps whatever plan they're on and goes home. */}
-      {!success && (
-        <div className="fixed inset-x-0 bottom-[calc(66px+env(safe-area-inset-bottom))] z-30 px-4">
-          <div className="tt-elevate mx-auto flex max-w-md items-center justify-between gap-3 rounded-2xl border border-border bg-surface/95 px-4 py-3 backdrop-blur">
-            <div className="min-w-0 text-sm text-muted">
-              You&apos;re on the{" "}
-              <span className="font-semibold text-foreground">
-                {planById(currentPlan)?.name ?? "Free"}
-              </span>{" "}
-              plan
-            </div>
-            <form action={keepCurrentPlan}>
-              <button
-                type="submit"
-                className="whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-semibold text-brand ring-1 ring-border hover:bg-brand-50 transition"
-              >
-                Stick with my plan →
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
 
       <BottomNav />
     </div>
