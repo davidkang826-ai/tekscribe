@@ -51,7 +51,7 @@ export default async function PlansPage(props: {
               href="/"
               className="tt-pop mt-6 inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-white font-semibold shadow-sm hover:bg-brand-600 transition"
             >
-              Start using TekScribe{chosenName ? ` ${chosenName}` : ""} →
+              Start using TekScribe{chosenName ? ` ${chosenName}` : ""}
             </Link>
           </div>
         ) : (

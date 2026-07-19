@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LogoMark } from "./Logo";
 import SendToCustomer from "./SendToCustomer";
 import ScheduleNextVisit from "./ScheduleNextVisit";
-import { saveNote, updateNote } from "@/lib/supabase/notes";
+import { saveNote, updateNote, updateNoteSummary } from "@/lib/supabase/notes";
 import { upsertCustomer } from "@/lib/supabase/customers";
 import { createClient } from "@/lib/supabase/client";
 import type { JobSummary, Customer, Attachment } from "@/lib/types";
@@ -145,7 +145,8 @@ export default function Recorder({
   const [transcript, setTranscript] = useState("");
   const [summary, setSummary] = useState<JobSummary | null>(null);
   const [noteId, setNoteId] = useState<string | null>(null);
-  const [editingMsg, setEditingMsg] = useState(false);
+  // Step 3: the AI summary is tucked behind a toggle, editable in place.
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const [reviewStep, setReviewStep] = useState<ReviewStep>("confirm");
   const [archiveState, setArchiveState] = useState<"idle" | "saving" | "saved">(
     "idle"
@@ -203,7 +204,7 @@ export default function Recorder({
     setTranscript("");
     setSummary(null);
     setNoteId(null);
-    setEditingMsg(false);
+    setSummaryOpen(false);
     setError(null);
     setCustomerName("");
     setCustomerEmail("");
@@ -674,6 +675,22 @@ export default function Recorder({
     }
   }
 
+  // Step 3's collapsible AI summary: snapshot on open so closing can refresh
+  // the customer message, and persist the edits so they ARE the note now.
+  function openSummaryEditor() {
+    if (!summary) return;
+    editSnapshotRef.current = JSON.stringify(summary);
+    setSummaryOpen(true);
+  }
+  function closeSummaryEditor() {
+    if (!summary) return;
+    const cleaned = cleanSummary(summary);
+    setSummary(cleaned);
+    setSummaryOpen(false);
+    maybeRefreshMessage(cleaned);
+    if (noteId) updateNoteSummary(noteId, cleaned).catch(() => {});
+  }
+
   // "Looks good": archive the note, then move on to sending. Returning here
   // and continuing again updates the same note in place.
   async function saveAndContinue() {
@@ -1121,7 +1138,7 @@ export default function Recorder({
               disabled={!transcript.trim()}
               className="inline-flex items-center gap-2 rounded-xl bg-brand px-7 py-3.5 text-white font-semibold text-base shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
             >
-              {summary ? "✨ Redo the summary" : "Looks good →"}
+              {summary ? "✨ Redo the summary" : "Looks good"}
             </button>
             {summary && (
               <button
@@ -1191,24 +1208,26 @@ export default function Recorder({
             </div>
           ) : (
             <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <span className="text-xs font-semibold uppercase tracking-wide text-accent-600">
-                  AI Summary
-                </span>
-                {reviewStep === "confirm" && editing && (
-                  <button
-                    onClick={() => {
-                      const cleaned = cleanSummary(summary);
-                      setSummary(cleaned);
-                      setEditing(false);
-                      maybeRefreshMessage(cleaned);
-                    }}
-                    className="tt-pop text-xs font-medium text-brand hover:underline"
-                  >
-                    ✓ Done editing
-                  </button>
-                )}
-              </div>
+              {reviewStep !== "send" && (
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-accent-600">
+                    AI Summary
+                  </span>
+                  {reviewStep === "confirm" && editing && (
+                    <button
+                      onClick={() => {
+                        const cleaned = cleanSummary(summary);
+                        setSummary(cleaned);
+                        setEditing(false);
+                        maybeRefreshMessage(cleaned);
+                      }}
+                      className="tt-pop text-xs font-medium text-brand hover:underline"
+                    >
+                      ✓ Done editing
+                    </button>
+                  )}
+                </div>
+              )}
 
               {editing ? (
                 <SummaryEditor
@@ -1218,6 +1237,62 @@ export default function Recorder({
                   messageDirty={messageDirty}
                   onMessageManualEdit={() => setMessageDirty(true)}
                 />
+              ) : reviewStep === "send" ? (
+                <>
+                  {/* Step 3 leads with the message; the AI summary waits
+                      behind a toggle so the screen stays about sending. */}
+                  {(summary.customerMessage || refreshingMsg) && (
+                    <div className="rounded-xl bg-brand-50 p-4">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-brand mb-1.5">
+                        Customer message template
+                      </div>
+                      {refreshingMsg ? (
+                        <p className="inline-flex items-center gap-2 text-sm font-medium text-brand">
+                          <LogoMark size={18} className="tt-logo-load" />
+                          Updating to match your edits…
+                        </p>
+                      ) : (
+                        <p className="tt-fade-in text-[15px] leading-relaxed text-foreground">
+                          {summary.customerMessage}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="mt-3">
+                    {summaryOpen ? (
+                      <div className="rounded-xl border border-border p-4">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-accent-600">
+                            AI Summary
+                          </span>
+                          <button
+                            type="button"
+                            onClick={closeSummaryEditor}
+                            className="tt-pop text-xs font-medium text-brand hover:underline"
+                          >
+                            ✓ Done
+                          </button>
+                        </div>
+                        <SummaryEditor
+                          summary={summary}
+                          onChange={setSummary}
+                          techName={techName}
+                          messageDirty={messageDirty}
+                          onMessageManualEdit={() => setMessageDirty(true)}
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={openSummaryEditor}
+                        className="text-xs font-medium text-brand hover:underline"
+                      >
+                        ▸ View or edit the AI summary
+                      </button>
+                    )}
+                  </div>
+                </>
               ) : (
                 <>
                   <h3 className="text-lg font-semibold text-foreground tt-fade-in">
@@ -1257,51 +1332,6 @@ export default function Recorder({
                     items={summary.nextSteps}
                   />
 
-                  {/* The message to the customer belongs to the send step;
-                      step 2 stays focused on checking the note itself. */}
-                  {reviewStep === "send" &&
-                    (summary.customerMessage || refreshingMsg) && (
-                      <div className="mt-4 rounded-xl bg-brand-50 p-4">
-                        <div className="mb-1.5 flex items-center justify-between gap-2">
-                          <div className="text-xs font-semibold uppercase tracking-wide text-brand">
-                            Customer message
-                          </div>
-                          {!refreshingMsg && (
-                            <button
-                              type="button"
-                              onClick={() => setEditingMsg((v) => !v)}
-                              className="tt-pop text-xs font-medium text-brand hover:underline"
-                            >
-                              {editingMsg ? "✓ Done" : "✏️ Edit"}
-                            </button>
-                          )}
-                        </div>
-                        {refreshingMsg ? (
-                          <p className="inline-flex items-center gap-2 text-sm font-medium text-brand">
-                            <LogoMark size={18} className="tt-logo-load" />
-                            Updating to match your edits…
-                          </p>
-                        ) : editingMsg ? (
-                          <textarea
-                            value={summary.customerMessage}
-                            onChange={(e) => {
-                              setSummary((s) =>
-                                s
-                                  ? { ...s, customerMessage: e.target.value }
-                                  : s
-                              );
-                              setMessageDirty(true);
-                            }}
-                            rows={5}
-                            className="w-full rounded-lg border border-border bg-surface p-3 text-[15px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/30"
-                          />
-                        ) : (
-                          <p className="tt-fade-in text-[15px] leading-relaxed text-foreground">
-                            {summary.customerMessage}
-                          </p>
-                        )}
-                      </div>
-                    )}
                 </>
               )}
 
@@ -1442,7 +1472,7 @@ export default function Recorder({
                               ? "Saving…"
                               : refreshingMsg
                                 ? "Updating…"
-                                : "Looks good →"}
+                                : "Looks good"}
                           </button>
                           <button
                             onClick={() => askDelete("summarized")}
@@ -1466,7 +1496,10 @@ export default function Recorder({
                     <div className="tt-fade-in">
                       <div className="mt-4">
                         <button
-                          onClick={() => setReviewStep("confirm")}
+                          onClick={() => {
+                            setSummaryOpen(false);
+                            setReviewStep("confirm");
+                          }}
                           className="tt-pop text-xs font-medium text-muted hover:text-foreground transition-colors"
                         >
                           ← Back to the note
@@ -1484,13 +1517,19 @@ export default function Recorder({
                         defaultCustomerPhone={customerPhone}
                         techName={techName}
                         techPhone={techPhone}
+                        onCustomerMessageChange={(message) => {
+                          setSummary((s) =>
+                            s ? { ...s, customerMessage: message } : s
+                          );
+                          setMessageDirty(true);
+                        }}
                       />
                       <div className="mt-5 border-t border-border pt-4 text-center">
                         <button
                           onClick={() => setReviewStep("schedule")}
                           className="tt-pop inline-flex items-center gap-2 rounded-xl bg-surface px-6 py-3 text-foreground font-semibold text-base ring-1 ring-border hover:bg-slate-50 transition"
                         >
-                          I&apos;m done →
+                          I&apos;m done
                         </button>
                       </div>
                     </div>
