@@ -78,6 +78,23 @@ Then rebuild in Xcode / Android Studio and bump the version number before
 re-uploading (iOS: MARKETING_VERSION in Xcode; Android: versionCode/
 versionName in `android/app/build.gradle`).
 
+## Universal Links (email links open the app)
+
+Links to tekscribe.io (password reset, note links) can open the iOS app
+directly instead of Safari. Three pieces, all required:
+
+1. **Vercel env var**: set `APPLE_TEAM_ID` to your Apple Developer Team ID
+   (Membership page on developer.apple.com, a 10-character code) and
+   redeploy. This activates the association file the site serves at
+   `/.well-known/apple-app-site-association`.
+2. **Xcode**: select the App target, Signing & Capabilities, "+ Capability",
+   add **Associated Domains**, then add the entry
+   `applinks:tekscribe.io`.
+3. Rebuild and reinstall the app. iOS fetches the association file at
+   install time, so the env var must be live before you install.
+
+`AppDelegate.swift` routes opened links to the matching in-app page.
+
 ## Known caveats
 
 - **Google Drive connect inside the app**: Google sometimes blocks OAuth
