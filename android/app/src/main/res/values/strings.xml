@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">TekScribe</string>
+    <string name="title_activity_main">TekScribe</string>
+    <string name="package_name">io.tekscribe.app</string>
+    <string name="custom_url_scheme">io.tekscribe.app</string>
+</resources>
