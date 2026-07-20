@@ -1,4 +1,5 @@
 import { getOpenAI, SUMMARY_MODEL } from "@/lib/openai";
+import { recentMessageSamples } from "@/lib/supabase/samples";
 import type { JobSummary } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -35,6 +36,14 @@ export async function POST(request: Request) {
       ? `The technician's name is "${name}". The customerMessage must greet the customer as this technician, e.g. "Hi, it's ${name}. Thanks again for letting me help you today."`
       : `No technician name is available, so open the customerMessage with a warm greeting without a name, e.g. "Hi, thanks again for letting me help you today."`;
 
+    // Mimic the tech's own voice: their recently sent messages, if any.
+    const samples = await recentMessageSamples().catch(() => [] as string[]);
+    const styleNote = samples.length
+      ? `\n\nThis technician's recently sent messages are below. Write the customerMessage in the same voice: match their tone, phrasing, and level of formality. Mimic style only, never copy facts from them.\n${samples
+          .map((s, i) => `EXAMPLE ${i + 1}:\n${s}`)
+          .join("\n---\n")}`
+      : "";
+
     const openai = getOpenAI();
     const completion = await openai.chat.completions.create({
       model: SUMMARY_MODEL,
@@ -44,7 +53,7 @@ export async function POST(request: Request) {
         { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
-          content: `${greetingNote}\n\nTranscript:\n"""${transcript.trim()}"""\n\nReturn the JSON object.`,
+          content: `${greetingNote}${styleNote}\n\nTranscript:\n"""${transcript.trim()}"""\n\nReturn the JSON object.`,
         },
       ],
     });

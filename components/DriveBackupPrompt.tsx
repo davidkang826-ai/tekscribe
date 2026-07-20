@@ -64,8 +64,8 @@ export default function DriveBackupPrompt() {
               Back up your visits to Google Drive
             </div>
             <p className="mt-0.5 text-[13px] leading-snug text-muted">
-              Everything you upload and note — photos, files, reports — is kept
-              in your own Drive, organized in one folder per customer.
+              Everything you upload and note, from photos to files to reports,
+              is kept in your own Drive, organized in one folder per customer.
             </p>
           </div>
         </div>

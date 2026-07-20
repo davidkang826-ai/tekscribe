@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { JobSummary } from "@/lib/types";
+import { saveMessageSample } from "@/lib/supabase/samples";
 
 type Channel = "email" | "text";
 
@@ -33,6 +34,11 @@ function customerNextSteps(summary: JobSummary): string[] {
   return summary.nextSteps.filter((s) => !/^buy\s*:/i.test(s.trim()));
 }
 
+/** Bullet items woven into one readable paragraph. */
+function paragraph(items: string[]): string {
+  return items.map((s) => s.trim().replace(/\.+$/, "")).join(". ") + ".";
+}
+
 function buildEmailBody(
   summary: JobSummary,
   opts: { signoffName?: string; contact?: Contact } = {}
@@ -42,15 +48,11 @@ function buildEmailBody(
   const lines: string[] = [];
   if (summary.customerMessage) lines.push(summary.customerMessage, "");
   if (summary.workDone.length) {
-    lines.push("What we did:");
-    for (const item of summary.workDone) lines.push(`• ${item}`);
-    lines.push("");
+    lines.push(`What we did: ${paragraph(summary.workDone)}`, "");
   }
   const next = customerNextSteps(summary);
   if (next.length) {
-    lines.push("Next steps:");
-    for (const item of next) lines.push(`• ${item}`);
-    lines.push("");
+    lines.push(`Next steps: ${paragraph(next)}`, "");
   }
   const reach = contactLine(opts.contact);
   if (reach) lines.push(reach, "");
@@ -64,8 +66,7 @@ function buildSmsBody(summary: JobSummary, contact?: Contact): string {
   if (summary.customerMessage) lines.push(summary.customerMessage);
   const next = customerNextSteps(summary);
   if (next.length) {
-    lines.push("", "Next steps:");
-    for (const item of next) lines.push(`- ${item}`);
+    lines.push("", `Next steps: ${paragraph(next)}`);
   }
   const reach = contactLine(contact);
   if (reach) lines.push("", reach);
@@ -80,7 +81,6 @@ export default function SendToCustomer({
   defaultCustomerPhone = "",
   techName = "",
   techPhone = "",
-  onCustomerMessageChange,
 }: {
   summary: JobSummary;
   defaultReplyTo?: string;
@@ -88,9 +88,6 @@ export default function SendToCustomer({
   defaultCustomerPhone?: string;
   techName?: string;
   techPhone?: string;
-  /** When provided, the preview offers in-place editing of the customer
-   *  message (the edit writes back to the live note). */
-  onCustomerMessageChange?: (message: string) => void;
 }) {
   const [channel, setChannel] = useState<Channel>("email");
   const [email, setEmail] = useState(defaultCustomerEmail);
@@ -102,7 +99,12 @@ export default function SendToCustomer({
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  // WYSIWYG editing: what you see in the preview is exactly what sends.
+  // Editing stores a per-channel override of the full message text.
   const [editingMsg, setEditingMsg] = useState(false);
+  const [proofing, setProofing] = useState(false);
+  const [emailOverride, setEmailOverride] = useState<string | null>(null);
+  const [smsOverride, setSmsOverride] = useState<string | null>(null);
 
   // Where customer replies go. Defaults to the tech's saved reply-to; they can
   // change it for this send.
@@ -118,14 +120,47 @@ export default function SendToCustomer({
     () => ({ phone: techPhone, email: validReplyTo ? replyTo : "" }),
     [techPhone, replyTo, validReplyTo]
   );
-  const emailBody = useMemo(
+  const builtEmail = useMemo(
     () => buildEmailBody(summary, { signoffName: firstName, contact }),
     [summary, firstName, contact]
   );
-  const smsBody = useMemo(
+  const builtSms = useMemo(
     () => buildSmsBody(summary, contact),
     [summary, contact]
   );
+  // A hand-edited body wins over the generated one, verbatim.
+  const emailBody = emailOverride ?? builtEmail;
+  const smsBody = smsOverride ?? builtSms;
+
+  // After the tech finishes editing, quietly fix typos and any details that
+  // directly contradict the note. Their wording otherwise stays put.
+  async function finishEditing() {
+    setEditingMsg(false);
+    const override = isEmail ? emailOverride : smsOverride;
+    if (override === null) return; // nothing was changed
+    setProofing(true);
+    try {
+      const res = await fetch("/api/proofread-message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: override, summary }),
+      });
+      const data = await res.json();
+      if (res.ok && typeof data.text === "string" && data.text.trim()) {
+        if (isEmail) setEmailOverride(data.text);
+        else setSmsOverride(data.text);
+      }
+    } catch {
+      // Their text stands as written.
+    } finally {
+      setProofing(false);
+    }
+  }
+
+  // Every sent message teaches the AI this tech's voice for future drafts.
+  function recordSample(text: string) {
+    saveMessageSample(text).catch(() => {});
+  }
 
   const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const phoneDigits = phone.replace(/[^\d+]/g, "");
@@ -155,6 +190,7 @@ export default function SendToCustomer({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Send failed.");
       setSent(true);
+      recordSample(emailBody);
     } catch (err) {
       setSendError(err instanceof Error ? err.message : "Send failed.");
     } finally {
@@ -289,32 +325,35 @@ export default function SendToCustomer({
           </div>
         )}
 
-        <details className="rounded-lg bg-slate-50 px-3 py-2.5">
+        <details className="rounded-lg bg-slate-50 px-3 py-2.5" open>
           <summary className="text-xs text-muted cursor-pointer select-none">
             Preview message
           </summary>
-          {onCustomerMessageChange && (
-            <div className="mt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setEditingMsg((v) => !v)}
-                className="text-xs font-medium text-brand hover:underline"
-              >
-                {editingMsg ? "✓ Done" : "✏️ Edit message"}
-              </button>
-            </div>
-          )}
-          {editingMsg && onCustomerMessageChange ? (
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={() => (editingMsg ? finishEditing() : setEditingMsg(true))}
+              disabled={proofing}
+              className="text-xs font-medium text-brand hover:underline disabled:opacity-60"
+            >
+              {proofing ? "Polishing…" : editingMsg ? "✓ Done" : "✏️ Edit message"}
+            </button>
+          </div>
+          {editingMsg ? (
             <>
               <textarea
-                value={summary.customerMessage}
-                onChange={(e) => onCustomerMessageChange(e.target.value)}
-                rows={5}
+                value={isEmail ? emailBody : smsBody}
+                onChange={(e) =>
+                  isEmail
+                    ? setEmailOverride(e.target.value)
+                    : setSmsOverride(e.target.value)
+                }
+                rows={12}
                 className="mt-1 w-full rounded-lg border border-border bg-surface p-3 text-[14px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/30"
               />
               <p className="mt-1 text-xs text-muted">
-                You&apos;re editing your message to the customer. The rest of
-                the preview updates automatically.
+                This is exactly what will be sent. Typos and details that
+                contradict the note get quietly fixed when you tap Done.
               </p>
             </>
           ) : (
@@ -355,6 +394,7 @@ export default function SendToCustomer({
               aria-disabled={!validPhone}
               onClick={(e) => {
                 if (!validPhone) e.preventDefault();
+                else recordSample(smsBody);
               }}
               className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 font-medium text-sm shadow-sm transition ${
                 validPhone

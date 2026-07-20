@@ -180,13 +180,16 @@ export default function ArchiveList({
                     {group.notes.length}
                   </span>
                   {group.nextVisit && (
-                    <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-semibold text-brand">
+                    <Link
+                      href="/calendar"
+                      className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-semibold text-brand hover:bg-brand/10 transition"
+                    >
                       Next visit{" "}
                       {new Date(group.nextVisit).toLocaleDateString(undefined, {
                         month: "short",
                         day: "numeric",
                       })}
-                    </span>
+                    </Link>
                   )}
                   {(() => {
                     const folder = group.notes.find(
@@ -200,7 +203,7 @@ export default function ArchiveList({
                         className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-brand hover:underline"
                       >
                         <GoogleDriveLogo size={13} />
-                        Open in Google Drive ↗
+                        Open in Google Drive
                       </a>
                     ) : null;
                   })()}
@@ -261,7 +264,7 @@ function NoteCard({ note }: { note: ArchiveNote }) {
               {preview}
             </p>
             <p className="mt-2 text-xs text-brand font-medium">
-              Tap for details ↓
+              Tap for details
             </p>
           </>
         ) : (

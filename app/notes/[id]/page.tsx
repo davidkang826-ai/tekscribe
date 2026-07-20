@@ -89,7 +89,7 @@ export default async function NoteDetailPage(props: {
           href="/notes"
           className="text-sm font-medium text-brand hover:underline"
         >
-          ← Archive
+          Back to Archive
         </Link>
 
         <div className="mt-4 flex items-baseline justify-between gap-3">
@@ -115,7 +115,7 @@ export default async function NoteDetailPage(props: {
             rel="noreferrer"
             className="tt-pop mt-3 inline-flex items-center gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-medium text-success ring-1 ring-green-100 hover:bg-green-100 transition"
           >
-            ✓ Backed up · <GoogleDriveLogo size={13} /> Open in Google Drive ↗
+            ✓ Backed up · <GoogleDriveLogo size={13} /> Open in Google Drive
           </a>
         )}
 
