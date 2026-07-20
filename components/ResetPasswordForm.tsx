@@ -24,7 +24,21 @@ export default function ResetPasswordForm() {
           name="password"
           type="password"
           required
+          autoComplete="new-password"
           placeholder="At least 8 characters"
+          className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-muted mb-1">
+          Confirm new password
+        </label>
+        <input
+          name="confirm"
+          type="password"
+          required
+          autoComplete="new-password"
+          placeholder="Type it again"
           className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
       </div>

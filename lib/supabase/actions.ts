@@ -86,8 +86,13 @@ export async function updatePassword(
   formData: FormData
 ): Promise<AuthState> {
   const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
   if (password.length < 8)
     return { error: "Password must be at least 8 characters." };
+  if (password !== confirm)
+    return {
+      error: "Those passwords don't match. Type the same password in both boxes.",
+    };
 
   const supabase = await createClient();
   const {
