@@ -86,13 +86,45 @@ function CalendarIcon() {
   );
 }
 
+function SunIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="23"
+      height="23"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="4" />
+      <line x1="12" y1="2" x2="12" y2="4.5" />
+      <line x1="12" y1="19.5" x2="12" y2="22" />
+      <line x1="2" y1="12" x2="4.5" y2="12" />
+      <line x1="19.5" y1="12" x2="22" y2="12" />
+      <line x1="4.9" y1="4.9" x2="6.7" y2="6.7" />
+      <line x1="17.3" y1="17.3" x2="19.1" y2="19.1" />
+      <line x1="4.9" y1="19.1" x2="6.7" y2="17.3" />
+      <line x1="17.3" y1="6.7" x2="19.1" y2="4.9" />
+    </svg>
+  );
+}
+
 const TABS = [
   { href: "/", label: "New note", Icon: MicIcon, match: (p: string) => p === "/" },
   {
     href: "/digest",
-    label: "Daily Digest",
-    Icon: CalendarIcon,
+    label: "Digest",
+    Icon: SunIcon,
     match: (p: string) => p.startsWith("/digest"),
+  },
+  {
+    href: "/calendar",
+    label: "Calendar",
+    Icon: CalendarIcon,
+    match: (p: string) => p.startsWith("/calendar"),
   },
   {
     href: "/notes",

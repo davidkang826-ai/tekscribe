@@ -16,15 +16,15 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
  *  act on. Unrecognized codes still show, so no failure is ever anonymous. */
 function driveErrorMessage(code: string): string {
   if (code === "access_denied")
-    return "Google didn't grant access. If you hit Cancel, just try again. If Google said access was blocked, the OAuth app is still in Testing mode — publish it or add yourself as a test user in the Google Cloud console.";
+    return "Google didn't grant access. If you hit Cancel, just try again. If Google said access was blocked, the OAuth app is still in Testing mode; publish it or add yourself as a test user in the Google Cloud console.";
   if (code === "invalid_client" || code === "unauthorized_client")
-    return "Google rejected the app's credentials. The client ID or secret configured on the server doesn't match the OAuth client — update them and redeploy.";
+    return "Google rejected the app's credentials. The client ID or secret configured on the server doesn't match the OAuth client. Update them and redeploy.";
   if (code === "redirect_uri_mismatch")
     return "This site's callback address isn't on the OAuth client's Authorized redirect URIs in the Google Cloud console.";
   if (code === "invalid_grant")
     return "The sign-in code expired or was already used. Give it another try.";
   if (code === "state")
-    return "The security check didn't match — the attempt may have sat too long, or cookies were blocked. Give it another try.";
+    return "The security check didn't match. The attempt may have sat too long, or cookies were blocked. Give it another try.";
   if (code === "nocode")
     return "Google sent you back without an authorization code. Give it another try.";
   if (code === "notconfigured")

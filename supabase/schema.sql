@@ -144,6 +144,34 @@ create index if not exists scheduled_visits_user_time_idx
   on public.scheduled_visits (user_id, scheduled_at);
 
 -- ---------------------------------------------------------------------------
+-- message_samples: messages the tech actually sent to customers. The AI reads
+-- the most recent few to mimic the tech's writing style in future drafts.
+-- ---------------------------------------------------------------------------
+create table if not exists public.message_samples (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  content text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.message_samples enable row level security;
+
+drop policy if exists "own samples - select" on public.message_samples;
+create policy "own samples - select" on public.message_samples
+  for select using (auth.uid() = user_id);
+
+drop policy if exists "own samples - insert" on public.message_samples;
+create policy "own samples - insert" on public.message_samples
+  for insert with check (auth.uid() = user_id);
+
+drop policy if exists "own samples - delete" on public.message_samples;
+create policy "own samples - delete" on public.message_samples
+  for delete using (auth.uid() = user_id);
+
+create index if not exists message_samples_user_created_idx
+  on public.message_samples (user_id, created_at desc);
+
+-- ---------------------------------------------------------------------------
 -- templates: reusable documents (invoice, work order, inspection report...)
 -- that the AI fills out from the spoken note. Owned per technician.
 -- ---------------------------------------------------------------------------

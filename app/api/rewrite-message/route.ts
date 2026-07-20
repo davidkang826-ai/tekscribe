@@ -1,4 +1,5 @@
 import { getOpenAI, SUMMARY_MODEL } from "@/lib/openai";
+import { recentMessageSamples } from "@/lib/supabase/samples";
 import type { JobSummary } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -43,6 +44,14 @@ export async function POST(request: Request) {
       ? `The technician's name is "${name}".`
       : `No technician name is available.`;
 
+    // Mimic the tech's own voice: their recently sent messages, if any.
+    const samples = await recentMessageSamples().catch(() => [] as string[]);
+    const styleNote = samples.length
+      ? `\n\nThis technician's recently sent messages are below. Write in the same voice: match their tone, phrasing, and level of formality. Mimic style only, never copy facts from them.\n${samples
+          .map((s, i) => `EXAMPLE ${i + 1}:\n${s}`)
+          .join("\n---\n")}`
+      : "";
+
     const openai = getOpenAI();
     const completion = await openai.chat.completions.create({
       model: SUMMARY_MODEL,
@@ -52,7 +61,7 @@ export async function POST(request: Request) {
         { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
-          content: `${greetingNote}\n\n${sections}\n\nReturn the JSON with the customerMessage.`,
+          content: `${greetingNote}${styleNote}\n\n${sections}\n\nReturn the JSON with the customerMessage.`,
         },
       ],
     });

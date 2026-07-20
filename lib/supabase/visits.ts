@@ -42,3 +42,65 @@ export async function scheduleVisit(input: {
   if (retry.error) return { error: retry.error.message };
   return {};
 }
+
+/** Edit a scheduled visit from the Calendar tab (RLS scopes it to the
+ *  signed-in tech's own rows). */
+export async function updateVisit(input: {
+  id: string;
+  customerName?: string;
+  reason?: string;
+  todo?: string;
+  kind?: "visit" | "call";
+  address?: string;
+  scheduledAtIso: string;
+}): Promise<{ error?: string }> {
+  const scheduledAt = new Date(input.scheduledAtIso);
+  if (isNaN(scheduledAt.getTime())) return { error: "Bad date." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Sign in first." };
+
+  const row = {
+    customer_name: input.customerName?.trim() || null,
+    reason: input.reason?.trim() || null,
+    todo: input.todo?.trim() || null,
+    kind: input.kind === "call" ? "call" : "visit",
+    address: input.address?.trim() || null,
+    scheduled_at: scheduledAt.toISOString(),
+  };
+  const { error } = await supabase
+    .from("scheduled_visits")
+    .update(row)
+    .eq("id", input.id)
+    .eq("user_id", user.id);
+  if (!error) return {};
+
+  const { kind: _k, address: _a, ...legacy } = row;
+  const retry = await supabase
+    .from("scheduled_visits")
+    .update(legacy)
+    .eq("id", input.id)
+    .eq("user_id", user.id);
+  if (retry.error) return { error: retry.error.message };
+  return {};
+}
+
+/** Remove a scheduled visit. */
+export async function deleteVisit(id: string): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Sign in first." };
+
+  const { error } = await supabase
+    .from("scheduled_visits")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) return { error: error.message };
+  return {};
+}

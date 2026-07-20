@@ -206,7 +206,7 @@ export default function DigestList() {
                 onClick={() => chooseMap(mapPref)}
                 className="font-medium text-brand hover:underline"
               >
-                Open in {mapPref === "apple" ? "Apple" : "Google"} Maps ↗
+                Open in {mapPref === "apple" ? "Apple" : "Google"} Maps
               </a>
               <a
                 href={mapUrl(mapPref === "apple" ? "google" : "apple", v.address)}

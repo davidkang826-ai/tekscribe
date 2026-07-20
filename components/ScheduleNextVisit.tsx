@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { scheduleVisit } from "@/lib/supabase/visits";
+import { TIME_OPTIONS, dateInputValue, combineDateTime } from "@/lib/times";
 
 type CalPref = "google" | "apple";
 const PREF_KEY = "tekscribe.calendar-pref";
@@ -15,15 +16,11 @@ function readPref(): CalPref | null {
   }
 }
 
-/** Tomorrow at 8:00 AM local, in datetime-local input format. */
-function defaultWhen(): string {
+/** Tomorrow, for the date input. */
+function defaultDate(): string {
   const d = new Date();
   d.setDate(d.getDate() + 1);
-  d.setHours(8, 0, 0, 0);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours()
-  )}:${pad(d.getMinutes())}`;
+  return dateInputValue(d);
 }
 
 /** 20260719T150000Z — the compact UTC format calendars want. */
@@ -60,7 +57,8 @@ export default function ScheduleNextVisit({
   noteId: string | null;
   onDone: () => void;
 }) {
-  const [when, setWhen] = useState(defaultWhen);
+  const [date, setDate] = useState(defaultDate);
+  const [time, setTime] = useState("08:00");
   const [busy, setBusy] = useState(false);
   const [pref, setPref] = useState<CalPref | null>(readPref);
   // On-site visit, or just a reminder to call the customer.
@@ -75,7 +73,7 @@ export default function ScheduleNextVisit({
     return items.slice(0, 3).join(". ");
   });
 
-  const reason = `${jobTitle}${customerName ? ` — ${customerName}` : ""}`;
+  const reason = `${jobTitle}${customerName ? ` - ${customerName}` : ""}`;
   const bringList = useMemo(
     () =>
       nextSteps
@@ -86,7 +84,7 @@ export default function ScheduleNextVisit({
   );
 
   function eventPieces() {
-    const start = new Date(when);
+    const start = combineDateTime(date, time);
     // A call reminder is a 15-minute block; an on-site visit reserves an hour.
     const minutes = kind === "call" ? 15 : 60;
     const end = new Date(start.getTime() + minutes * 60 * 1000);
@@ -217,10 +215,6 @@ export default function ScheduleNextVisit({
         <h3 className="text-lg font-semibold text-foreground">
           Schedule the next visit?
         </h3>
-        {customerName ? (
-          <p className="mt-1 text-sm text-muted">👤 {customerName}</p>
-        ) : null}
-        <p className="mt-0.5 text-sm text-muted">{reason}</p>
 
         {/* On-site visit, or just a nudge to pick up the phone */}
         <div className="mt-4 inline-flex rounded-full bg-slate-100 p-1">
@@ -282,16 +276,36 @@ export default function ScheduleNextVisit({
           )}
         </div>
 
-        <div className="mt-3">
-          <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
-            When
-          </label>
-          <input
-            type="datetime-local"
-            value={when}
-            onChange={(e) => setWhen(e.target.value)}
-            className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-          />
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+              Date
+            </label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+              Time
+            </label>
+            {/* A native select: iOS renders it as a scroll wheel, like the
+                Apple Calendar picker, in 5-minute steps. */}
+            <select
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+            >
+              {TIME_OPTIONS.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
@@ -304,7 +318,7 @@ export default function ScheduleNextVisit({
             onClick={onDone}
             className="text-xs font-medium text-muted hover:text-foreground transition-colors"
           >
-            Skip for now
+            Skip
           </button>
         </div>
       </div>
