@@ -14,7 +14,9 @@ const config: CapacitorConfig = {
     allowNavigation: ["accounts.google.com", "*.googleusercontent.com"],
   },
   ios: {
-    contentInset: "automatic",
+    // Content goes edge to edge; the app pads for the safe areas itself, so
+    // the web view adds no inset that could make the fixed shell scroll.
+    contentInset: "never",
   },
   android: {
     allowMixedContent: false,
