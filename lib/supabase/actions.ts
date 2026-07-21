@@ -72,13 +72,51 @@ export async function requestPasswordReset(
 
   const supabase = await createClient();
   const origin = await siteOrigin();
-  // Sends a recovery link; /auth/confirm verifies it and forwards to reset.
+  // Sends the recovery email. The template shows a 6-digit code
+  // ({{ .Token }}); the redirectTo is only used if the email still links.
   await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/auth/confirm?next=/reset-password`,
   });
 
   // Always report success (don't reveal whether the email exists).
   return { ok: true };
+}
+
+/** Verify the 6-digit reset code, set the new password, and end on a fresh
+ *  sign-in. Keeps the whole reset inside the app (no email link to misfire). */
+export async function resetPasswordWithCode(
+  _prev: AuthState,
+  formData: FormData
+): Promise<AuthState> {
+  const email = String(formData.get("email") ?? "").trim();
+  const token = String(formData.get("token") ?? "").replace(/\D/g, "");
+  const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+
+  if (!email || token.length < 6)
+    return { error: "Enter the 6-digit code from your email." };
+  if (password.length < 8)
+    return { error: "Password must be at least 8 characters." };
+  if (password !== confirm)
+    return {
+      error: "Those passwords don't match. Type the same password in both boxes.",
+    };
+
+  const supabase = await createClient();
+  const { error: verifyError } = await supabase.auth.verifyOtp({
+    email,
+    token,
+    type: "recovery",
+  });
+  if (verifyError)
+    return { error: "That code is incorrect or expired. Request a new one." };
+
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) return { error: error.message };
+
+  // New password set; sign out so they log in fresh with it.
+  await supabase.auth.signOut();
+  redirect("/login?reset=success");
 }
 
 export async function updatePassword(
