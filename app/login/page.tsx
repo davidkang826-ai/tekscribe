@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 export default async function LoginPage(props: {
-  searchParams: Promise<{ error?: string; deleted?: string }>;
+  searchParams: Promise<{ error?: string; deleted?: string; reset?: string }>;
 }) {
   if (isSupabaseConfigured) {
     const supabase = await createClient();
@@ -15,12 +15,14 @@ export default async function LoginPage(props: {
     if (user) redirect("/");
   }
 
-  const { error, deleted } = await props.searchParams;
+  const { error, deleted, reset } = await props.searchParams;
   const notice = deleted
     ? "Your account and all its data have been deleted. Thanks for trying TekScribe."
-    : error === "verification"
-      ? "That verification link was invalid or expired. Try signing in, or sign up again."
-      : undefined;
+    : reset === "success"
+      ? "Your password is updated. Sign in with your new password."
+      : error === "verification"
+        ? "That verification link was invalid or expired. Try signing in, or sign up again."
+        : undefined;
 
   return <AuthForm mode="login" action={signIn} notice={notice} />;
 }
