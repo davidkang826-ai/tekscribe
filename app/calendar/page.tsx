@@ -15,10 +15,10 @@ export default async function CalendarPage() {
   if (!user) redirect("/login");
 
   return (
-    <div className="min-h-full flex flex-col">
+    <div className="h-dvh flex flex-col overflow-hidden">
       <AppHeader />
 
-      <main className="flex-1 w-full max-w-lg mx-auto px-5 pt-4 pb-28">
+      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain w-full max-w-lg mx-auto px-5 pt-4 pb-28">
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Calendar
         </h1>
