@@ -26,5 +26,14 @@ export async function GET(request: NextRequest) {
     if (!error) return NextResponse.redirect(`${origin}${next}`);
   }
 
+  // The token was consumed or expired (mail apps pre-open links to scan
+  // them, burning one-time tokens). If the person is already signed in,
+  // the destination is still legitimately theirs: send them on so a reset
+  // link always lands on the set-new-password screen.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) return NextResponse.redirect(`${origin}${next}`);
+
   return NextResponse.redirect(`${origin}/login?error=verification`);
 }
