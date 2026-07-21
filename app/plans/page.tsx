@@ -32,10 +32,10 @@ export default async function PlansPage(props: {
   if (!error && prof?.plan) currentPlan = prof.plan;
 
   return (
-    <div className="min-h-full flex flex-col">
+    <div className="h-dvh flex flex-col overflow-hidden">
       <AppHeader />
 
-      <main className="flex-1 w-full max-w-3xl mx-auto px-5 pt-6 pb-28">
+      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain w-full max-w-3xl mx-auto px-5 pt-6 pb-28">
         {success ? (
           <div className="mx-auto max-w-md rounded-2xl border border-border bg-surface p-8 text-center shadow-sm">
             <div className="text-4xl mb-2">🎉</div>

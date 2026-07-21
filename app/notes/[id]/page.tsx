@@ -92,10 +92,10 @@ export default async function NoteDetailPage(props: {
   );
 
   return (
-    <div className="min-h-full flex flex-col">
+    <div className="h-dvh flex flex-col overflow-hidden">
       <AppHeader />
 
-      <main className="flex-1 w-full max-w-3xl mx-auto px-5 pt-2 pb-28">
+      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain w-full max-w-3xl mx-auto px-5 pt-2 pb-28">
         <Link
           href="/notes"
           className="text-sm font-medium text-brand hover:underline"
