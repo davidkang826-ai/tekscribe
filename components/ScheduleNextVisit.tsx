@@ -49,11 +49,15 @@ export default function ScheduleNextVisit({
   jobTitle,
   nextSteps,
   noteId,
+  customerAddress = "",
+  customerRequests = [],
   onDone,
 }: {
   customerName: string;
+  customerAddress?: string;
   jobTitle: string;
   nextSteps: string[];
+  customerRequests?: string[];
   noteId: string | null;
   onDone: () => void;
 }) {
@@ -63,14 +67,19 @@ export default function ScheduleNextVisit({
   const [pref, setPref] = useState<CalPref | null>(readPref);
   // On-site visit, or just a reminder to call the customer.
   const [kind, setKind] = useState<"visit" | "call">("visit");
-  const [address, setAddress] = useState("");
+  // Prefill the address with what the tech entered on the note.
+  const [address, setAddress] = useState(customerAddress);
 
-  // What the next visit is for, from the note's next steps (purchases are the
-  // tech's own list, so they stay out of the calendar title but keep the
-  // "Buy:" items in the body as a bring-list).
+  // Prefill "what the next visit is for" from the AI note: the follow-ups
+  // and things the customer asked for (purchases stay off, they're the tech's
+  // own list, kept in the body as a bring-list). The tech can edit it.
   const [todo, setTodo] = useState(() => {
-    const items = nextSteps.filter((s) => !/^buy\s*:/i.test(s.trim()));
-    return items.slice(0, 3).join(". ");
+    const steps = nextSteps.filter((s) => !/^buy\s*:/i.test(s.trim()));
+    const source = steps.length ? steps : customerRequests;
+    return source
+      .slice(0, 3)
+      .map((s) => s.trim().replace(/\.+$/, ""))
+      .join(". ");
   });
 
   const reason = `${jobTitle}${customerName ? ` - ${customerName}` : ""}`;
@@ -260,7 +269,7 @@ export default function ScheduleNextVisit({
 
         <div className="mt-4">
           <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
-            What the next visit is for
+            {kind === "call" ? "What the call is for" : "What this visit is for"}
           </label>
           <textarea
             value={todo}
@@ -276,36 +285,35 @@ export default function ScheduleNextVisit({
           )}
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <div className="min-w-0">
-            <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
-              Date
-            </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="block w-full min-w-0 rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-            />
-          </div>
-          <div className="min-w-0">
-            <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
-              Time
-            </label>
-            {/* A native select: iOS renders it as a scroll wheel, like the
-                Apple Calendar picker, in 5-minute steps. */}
-            <select
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              className="block w-full min-w-0 rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-            >
-              {TIME_OPTIONS.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </div>
+        {/* Date and time on their own rows so neither gets cramped. */}
+        <div className="mt-3">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+            Date
+          </label>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="block w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+          />
+        </div>
+        <div className="mt-3">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+            Time
+          </label>
+          {/* A native select: iOS renders it as a scroll wheel, like the
+              Apple Calendar picker, in 5-minute steps. */}
+          <select
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            className="block w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+          >
+            {TIME_OPTIONS.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
