@@ -154,6 +154,7 @@ export default function Recorder({
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [customerAddress, setCustomerAddress] = useState("");
   const [nameMatches, setNameMatches] = useState<Customer[]>([]);
   const [attachments, setAttachments] = useState<Attach[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -206,6 +207,7 @@ export default function Recorder({
     setCustomerName("");
     setCustomerEmail("");
     setCustomerPhone("");
+    setCustomerAddress("");
     setNameMatches([]);
     setAttachments([]);
     setViewing(null);
@@ -278,8 +280,10 @@ export default function Recorder({
       (c) => c.name.trim().toLowerCase() === value.trim().toLowerCase()
     );
     if (matches.length === 1) {
+      // Known customer: pull their saved contact so the tech doesn't retype it.
       setCustomerEmail(matches[0].email ?? "");
       setCustomerPhone(matches[0].phone ?? "");
+      setCustomerAddress(matches[0].address ?? "");
       setNameMatches([]);
     } else if (matches.length > 1) {
       setNameMatches(matches);
@@ -291,6 +295,7 @@ export default function Recorder({
   function pickMatch(c: Customer) {
     setCustomerEmail(c.email ?? "");
     setCustomerPhone(c.phone ?? "");
+    setCustomerAddress(c.address ?? "");
     setNameMatches([]);
   }
 
@@ -687,6 +692,7 @@ export default function Recorder({
       customerName,
       customerEmail,
       customerPhone,
+      customerAddress,
       attachments: attachments.map(({ path, name, type }) => ({
         path,
         name,
@@ -709,6 +715,7 @@ export default function Recorder({
         name: customerName,
         email: customerEmail,
         phone: customerPhone,
+        address: customerAddress,
       });
     }
   }
@@ -1204,6 +1211,80 @@ export default function Recorder({
             </div>
           ) : (
             <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+              {/* Client details lead the review: name, phone, email, address */}
+              {reviewStep === "confirm" && !editing && (
+                <div className="mb-4 rounded-xl bg-brand-50/60 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-brand mb-2">
+                    Client
+                  </div>
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      list="tt-customers"
+                      value={customerName}
+                      onChange={(e) => onCustomerName(e.target.value)}
+                      placeholder="Client name"
+                      className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-brand/30"
+                    />
+                    <datalist id="tt-customers">
+                      {uniqueNames.map((n) => (
+                        <option key={n} value={n} />
+                      ))}
+                    </datalist>
+
+                    {nameMatches.length > 1 && (
+                      <div className="rounded-lg bg-surface p-2.5 text-xs ring-1 ring-border">
+                        <p className="text-muted mb-1.5">
+                          A few named {customerName}. Which one?
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {nameMatches.map((c, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => pickMatch(c)}
+                              className="tt-pop rounded-md bg-surface px-2.5 py-1 font-medium text-foreground ring-1 ring-border hover:bg-white"
+                            >
+                              {c.email || c.phone || "no contact info"}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <input
+                      type="tel"
+                      inputMode="tel"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      placeholder="Phone"
+                      className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                    />
+                    <input
+                      type="email"
+                      inputMode="email"
+                      autoCapitalize="off"
+                      autoCorrect="off"
+                      value={customerEmail}
+                      onChange={(e) => setCustomerEmail(e.target.value)}
+                      placeholder="Email"
+                      className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                    />
+                    <input
+                      type="text"
+                      autoCapitalize="words"
+                      value={customerAddress}
+                      onChange={(e) => setCustomerAddress(e.target.value)}
+                      placeholder="Address"
+                      className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                    />
+                    <p className="text-[11px] text-muted">
+                      Saved with this client, so it fills in next time.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {reviewStep !== "send" && (
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <span className="text-xs font-semibold uppercase tracking-wide text-accent-600">
@@ -1330,69 +1411,6 @@ export default function Recorder({
                           Parts, customer requests, next steps, any detail. We
                           file each in the right spot.
                         </p>
-                      </div>
-
-                      {/* Customer */}
-                      <div className="mt-5 border-t border-border pt-5">
-                        <div className="text-xs font-semibold uppercase tracking-wide text-muted mb-2">
-                          Customer
-                        </div>
-                        <div className="space-y-2">
-                          <input
-                            type="text"
-                            list="tt-customers"
-                            value={customerName}
-                            onChange={(e) => onCustomerName(e.target.value)}
-                            placeholder="Customer name"
-                            className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-                          />
-                          <datalist id="tt-customers">
-                            {uniqueNames.map((n) => (
-                              <option key={n} value={n} />
-                            ))}
-                          </datalist>
-
-                          {nameMatches.length > 1 && (
-                            <div className="rounded-lg bg-slate-50 p-2.5 text-xs">
-                              <p className="text-muted mb-1.5">
-                                A few named {customerName}. Which one?
-                              </p>
-                              <div className="flex flex-wrap gap-1.5">
-                                {nameMatches.map((c, i) => (
-                                  <button
-                                    key={i}
-                                    type="button"
-                                    onClick={() => pickMatch(c)}
-                                    className="tt-pop rounded-md bg-surface px-2.5 py-1 font-medium text-foreground ring-1 ring-border hover:bg-white"
-                                  >
-                                    {c.email || c.phone || "no contact info"}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <input
-                              type="email"
-                              inputMode="email"
-                              autoCapitalize="off"
-                              autoCorrect="off"
-                              value={customerEmail}
-                              onChange={(e) => setCustomerEmail(e.target.value)}
-                              placeholder="Email"
-                              className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-                            />
-                            <input
-                              type="tel"
-                              inputMode="tel"
-                              value={customerPhone}
-                              onChange={(e) => setCustomerPhone(e.target.value)}
-                              placeholder="Phone"
-                              className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-                            />
-                          </div>
-                        </div>
                       </div>
 
                       {/* Step 2 actions */}

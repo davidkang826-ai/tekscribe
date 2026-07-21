@@ -113,7 +113,7 @@ function SunIcon() {
 }
 
 const TABS = [
-  { href: "/", label: "New note", Icon: MicIcon, match: (p: string) => p === "/" },
+  { href: "/", label: "Record", Icon: MicIcon, match: (p: string) => p === "/" },
   {
     href: "/digest",
     label: "Digest",
@@ -148,7 +148,7 @@ export default function BottomNav() {
       // Anchor the tab bar during page transitions: content moves, chrome doesn't.
       style={{ viewTransitionName: "tt-nav" }}
     >
-      <div className="mx-auto flex max-w-md items-stretch justify-around">
+      <div className="mx-auto flex max-w-md items-stretch justify-around px-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
         {TABS.map(({ href, label, Icon, match }) => {
           const active = match(pathname);
           return (
@@ -156,12 +156,12 @@ export default function BottomNav() {
               key={href}
               href={href}
               aria-current={active ? "page" : undefined}
-              className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${
+              className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors ${
                 active ? "text-brand" : "text-muted hover:text-foreground"
               }`}
             >
               <Icon />
-              <span>{label}</span>
+              <span className="whitespace-nowrap">{label}</span>
             </Link>
           );
         })}

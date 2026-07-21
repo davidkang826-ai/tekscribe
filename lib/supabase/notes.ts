@@ -15,6 +15,7 @@ export async function saveNote(input: {
   customerEmail?: string;
   customerName?: string;
   customerPhone?: string;
+  customerAddress?: string;
   attachments?: Attachment[];
 }): Promise<SaveResult> {
   if (!input.transcript?.trim()) return { error: "Nothing to save yet." };
@@ -25,21 +26,39 @@ export async function saveNote(input: {
   } = await supabase.auth.getUser();
   if (!user) return { error: "You need to be signed in to save." };
 
-  const { data, error } = await supabase
+  const base = {
+    user_id: user.id,
+    job_title: input.summary?.jobTitle ?? null,
+    customer_name: input.customerName?.trim() || null,
+    transcript: input.transcript.trim(),
+    summary: input.summary,
+    customer_email: input.customerEmail || null,
+    attachments: input.attachments?.length ? input.attachments : null,
+  };
+  const full = {
+    ...base,
+    customer_phone: input.customerPhone?.trim() || null,
+    customer_address: input.customerAddress?.trim() || null,
+  };
+  // Try with the newer contact columns; fall back if the migration hasn't run.
+  let data: { id: string } | null = null;
+  const first = await supabase
     .from("voice_notes")
-    .insert({
-      user_id: user.id,
-      job_title: input.summary?.jobTitle ?? null,
-      customer_name: input.customerName?.trim() || null,
-      transcript: input.transcript.trim(),
-      summary: input.summary,
-      customer_email: input.customerEmail || null,
-      attachments: input.attachments?.length ? input.attachments : null,
-    })
+    .insert(full)
     .select("id")
     .single();
-
-  if (error) return { error: error.message };
+  if (!first.error) {
+    data = first.data;
+  } else {
+    const retry = await supabase
+      .from("voice_notes")
+      .insert(base)
+      .select("id")
+      .single();
+    if (retry.error) return { error: retry.error.message };
+    data = retry.data;
+  }
+  if (!data) return { error: "Couldn't save the note." };
 
   // Mirror the note and its photos/files into their Google Drive after the
   // response is sent.
@@ -60,6 +79,7 @@ export async function updateNote(
     customerEmail?: string;
     customerName?: string;
     customerPhone?: string;
+    customerAddress?: string;
     attachments?: Attachment[];
   }
 ): Promise<SaveResult> {
@@ -71,20 +91,32 @@ export async function updateNote(
   } = await supabase.auth.getUser();
   if (!user) return { error: "You need to be signed in to save." };
 
-  const { error } = await supabase
+  const base = {
+    job_title: input.summary?.jobTitle ?? null,
+    customer_name: input.customerName?.trim() || null,
+    transcript: input.transcript.trim(),
+    summary: input.summary,
+    customer_email: input.customerEmail || null,
+    attachments: input.attachments?.length ? input.attachments : null,
+  };
+  const full = {
+    ...base,
+    customer_phone: input.customerPhone?.trim() || null,
+    customer_address: input.customerAddress?.trim() || null,
+  };
+  const upd = await supabase
     .from("voice_notes")
-    .update({
-      job_title: input.summary?.jobTitle ?? null,
-      customer_name: input.customerName?.trim() || null,
-      transcript: input.transcript.trim(),
-      summary: input.summary,
-      customer_email: input.customerEmail || null,
-      attachments: input.attachments?.length ? input.attachments : null,
-    })
+    .update(full)
     .eq("id", id)
     .eq("user_id", user.id);
-
-  if (error) return { error: error.message };
+  if (upd.error) {
+    const retry = await supabase
+      .from("voice_notes")
+      .update(base)
+      .eq("id", id)
+      .eq("user_id", user.id);
+    if (retry.error) return { error: retry.error.message };
+  }
 
   // Any newly added photos/files also mirror to Drive (existing ones skip),
   // and the note document updates in place.
