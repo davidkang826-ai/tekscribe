@@ -25,7 +25,12 @@ type Visit = {
   scheduled_at: string;
 };
 
-type Contact = { name: string; email: string | null; phone: string | null };
+type Contact = {
+  name: string;
+  email: string | null;
+  phone: string | null;
+  address?: string | null;
+};
 
 const MAP_KEY = "tekscribe.map-pref";
 function mapHref(address: string): string {
@@ -145,11 +150,20 @@ export default function CalendarView() {
   useEffect(() => {
     (async () => {
       const supabase = createClient();
-      const { data } = await supabase
+      // Ask for address too, tolerating databases without that column.
+      const full = await supabase
         .from("customers")
-        .select("name, email, phone")
+        .select("name, email, phone, address")
         .order("name", { ascending: true });
-      setContacts((data ?? []) as Contact[]);
+      const rows = full.error
+        ? (
+            await supabase
+              .from("customers")
+              .select("name, email, phone")
+              .order("name", { ascending: true })
+          ).data
+        : full.data;
+      setContacts((rows ?? []) as Contact[]);
     })();
   }, []);
 
@@ -241,70 +255,6 @@ export default function CalendarView() {
 
   return (
     <div>
-      {/* Sync this calendar into the tech's Apple/Google calendar */}
-      <div className="mt-3">
-        <button
-          type="button"
-          onClick={() => (syncOpen ? setSyncOpen(false) : openSync())}
-          className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3.5 py-2 text-sm font-medium text-brand ring-1 ring-border hover:bg-brand-50 transition"
-        >
-          🔄 Sync to my calendar
-        </button>
-        {syncOpen && (
-          <div className="tt-fade-in mt-2 rounded-2xl border border-border bg-surface p-4 text-sm shadow-sm">
-            {syncBusy || !feedUrl ? (
-              <p className="text-muted">Preparing your calendar link…</p>
-            ) : (
-              <>
-                <p className="text-muted">
-                  Add this once and every TekScribe visit shows up in your
-                  calendar and stays updated.
-                </p>
-                <div className="mt-3 flex flex-col gap-2">
-                  {/* Apple / i-devices: webcal opens the subscribe sheet. */}
-                  <a
-                    href={feedUrl.replace(/^https?:/, "webcal:")}
-                    className="rounded-lg bg-brand px-4 py-2.5 text-center font-semibold text-white shadow-sm hover:bg-brand-600 transition"
-                  >
-                    Add to Apple Calendar
-                  </a>
-                  {/* Google: subscribe by URL. */}
-                  <a
-                    href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(
-                      feedUrl
-                    )}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-lg bg-surface px-4 py-2.5 text-center font-semibold text-foreground ring-1 ring-border hover:bg-slate-50 transition"
-                  >
-                    Add to Google Calendar
-                  </a>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(feedUrl);
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 2000);
-                      } catch {
-                        // ignore
-                      }
-                    }}
-                    className="text-xs font-medium text-muted hover:text-foreground"
-                  >
-                    {copied ? "✓ Link copied" : "Or copy the calendar link"}
-                  </button>
-                </div>
-                <p className="mt-3 text-xs text-muted">
-                  This is a one-way feed: events flow from TekScribe into your
-                  calendar. Keep the link private.
-                </p>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-
       {/* Month header */}
       <div className="mt-4 flex items-center justify-between">
         <button
@@ -390,7 +340,7 @@ export default function CalendarView() {
           onClick={openCreate}
           className="tt-pop rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-600 transition"
         >
-          ＋ New event
+          ＋ Add
         </button>
       </div>
 
@@ -406,116 +356,114 @@ export default function CalendarView() {
         </div>
       ) : dayVisits.length === 0 && !form ? (
         <div className="mt-3 rounded-2xl border border-dashed border-border bg-surface p-8 text-center text-sm text-muted">
-          Nothing scheduled this day.
+          Nothing scheduled.
         </div>
       ) : (
         <ul className="mt-3 space-y-3">
           {dayVisits.map((v) => {
             const contact = contactFor(v.customer_name);
+            const isCall = v.kind === "call";
+            const address = v.address || contact?.address || null;
             return (
               <li
                 key={v.id}
                 className="tt-elevate rounded-2xl border border-border bg-surface p-4"
               >
                 <div className="flex items-baseline justify-between gap-3">
-                  <h3 className="font-semibold text-foreground">
-                    {v.kind === "call" ? "📞 " : ""}
-                    {v.customer_name || "No customer"}
-                  </h3>
-                  <time className="text-sm font-semibold text-brand whitespace-nowrap">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <h3 className="truncate font-semibold text-foreground">
+                      {v.customer_name || "No customer"}
+                    </h3>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                        isCall
+                          ? "bg-brand-50 text-brand"
+                          : "bg-green-100 text-success"
+                      }`}
+                    >
+                      {isCall ? "Call" : "Visit"}
+                    </span>
+                  </div>
+                  <time className="shrink-0 text-sm font-semibold text-brand whitespace-nowrap">
                     {new Date(v.scheduled_at).toLocaleTimeString(undefined, {
                       hour: "numeric",
                       minute: "2-digit",
                     })}
                   </time>
                 </div>
-                {v.reason && (
-                  <p className="mt-0.5 text-xs text-muted">{v.reason}</p>
+
+                {/* The one direct action: phone for a call, map for a visit */}
+                {isCall && contact?.phone && (
+                  <a
+                    href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}
+                    className="mt-1.5 block text-sm font-medium text-brand hover:underline"
+                  >
+                    📞 {contact.phone}
+                  </a>
                 )}
-                {v.todo && (
-                  <p className="mt-2 text-sm text-foreground">{v.todo}</p>
-                )}
-                {v.address && (
-                  <p className="mt-1.5 text-sm text-muted">📍 {v.address}</p>
+                {!isCall && address && (
+                  <a
+                    href={mapHref(address)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1.5 block text-sm font-medium text-brand hover:underline"
+                  >
+                    📍 {address}
+                  </a>
                 )}
 
-                {/* Everything a tech needs mid-day: call, email, map, edit */}
-                <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium">
-                  {contact?.phone && (
-                    <a
-                      href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}
-                      className="rounded-full bg-brand-50 px-3 py-1.5 text-brand hover:bg-brand/10 transition"
-                    >
-                      📞 Call
-                    </a>
-                  )}
-                  {contact?.email && (
-                    <a
-                      href={`mailto:${contact.email}`}
-                      className="rounded-full bg-brand-50 px-3 py-1.5 text-brand hover:bg-brand/10 transition"
-                    >
-                      ✉️ Email
-                    </a>
-                  )}
-                  {v.address && (
-                    <a
-                      href={mapHref(v.address)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-full bg-brand-50 px-3 py-1.5 text-brand hover:bg-brand/10 transition"
-                    >
-                      🗺 Map
-                    </a>
-                  )}
+                {v.todo && (
+                  <p className="mt-1.5 text-sm text-foreground">{v.todo}</p>
+                )}
+
+                <div className="mt-2 flex gap-4 text-xs font-medium">
                   {v.note_id && (
                     <Link
                       href={`/notes/${v.note_id}`}
-                      className="rounded-full bg-slate-100 px-3 py-1.5 text-foreground hover:bg-slate-200 transition"
+                      className="text-brand hover:underline"
                     >
-                      Visit note
+                      Note
                     </Link>
                   )}
                   <span className="flex-1" />
                   <button
                     type="button"
                     onClick={() => openEdit(v)}
-                    className="rounded-full px-3 py-1.5 text-muted ring-1 ring-border hover:text-foreground transition"
+                    className="text-muted hover:text-foreground transition"
                   >
                     Edit
                   </button>
                   <button
                     type="button"
                     onClick={() => setConfirmDelete(v.id)}
-                    className="rounded-full px-3 py-1.5 text-danger ring-1 ring-border hover:bg-red-50 transition"
+                    className="text-danger hover:underline"
                   >
                     Delete
                   </button>
                 </div>
 
                 {confirmDelete === v.id && (
-                  <div className="tt-fade-in mt-3 rounded-xl bg-red-50 p-3 ring-1 ring-red-100">
-                    <p className="text-sm font-medium text-foreground">
+                  <div className="tt-fade-in mt-3 flex items-center gap-3 rounded-xl bg-red-50 p-3 ring-1 ring-red-100">
+                    <p className="flex-1 text-sm font-medium text-foreground">
                       Delete this event?
                     </p>
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setConfirmDelete(null);
-                          remove(v.id);
-                        }}
-                        className="rounded-lg bg-danger px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition"
-                      >
-                        Yes, delete
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDelete(null)}
-                        className="rounded-lg px-3.5 py-1.5 text-xs font-medium text-muted ring-1 ring-border hover:text-foreground transition"
-                      >
-                        Keep it
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirmDelete(null);
+                        remove(v.id);
+                      }}
+                      className="rounded-lg bg-danger px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition"
+                    >
+                      Delete
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete(null)}
+                      className="text-xs font-medium text-muted hover:text-foreground transition"
+                    >
+                      Cancel
+                    </button>
                   </div>
                 )}
               </li>
@@ -523,6 +471,58 @@ export default function CalendarView() {
           })}
         </ul>
       )}
+
+      {/* Sync lives quietly at the bottom; one tap, set-and-forget. */}
+      <div className="mt-6 text-center">
+        <button
+          type="button"
+          onClick={() => (syncOpen ? setSyncOpen(false) : openSync())}
+          className="text-xs font-medium text-muted hover:text-foreground transition"
+        >
+          🔄 Sync to phone calendar
+        </button>
+        {syncOpen && (
+          <div className="tt-fade-in mt-2 rounded-2xl border border-border bg-surface p-4 text-left text-sm shadow-sm">
+            {syncBusy || !feedUrl ? (
+              <p className="text-muted">Preparing your link…</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <a
+                  href={feedUrl.replace(/^https?:/, "webcal:")}
+                  className="rounded-lg bg-brand px-4 py-2.5 text-center font-semibold text-white shadow-sm hover:bg-brand-600 transition"
+                >
+                  Add to Apple Calendar
+                </a>
+                <a
+                  href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(
+                    feedUrl
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-lg bg-surface px-4 py-2.5 text-center font-semibold text-foreground ring-1 ring-border hover:bg-slate-50 transition"
+                >
+                  Add to Google Calendar
+                </a>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(feedUrl);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                  className="text-xs font-medium text-muted hover:text-foreground"
+                >
+                  {copied ? "✓ Link copied" : "Copy link"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Create / edit */}
       {form && (

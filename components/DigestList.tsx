@@ -157,15 +157,12 @@ export default function DigestList() {
 
   if (rows.length === 0) {
     return (
-      <div className="mt-6 rounded-2xl border border-dashed border-border bg-surface p-10 text-center text-muted">
+      <div className="mt-6 rounded-2xl border border-dashed border-border bg-surface p-10 text-center">
         <p className="font-medium text-foreground">
           Nothing on the books today.
         </p>
-        <p className="mt-2 text-sm">
-          Scheduling a visit or call files it here automatically.
-        </p>
         {needsMigration && (
-          <p className="mt-3 text-xs">
+          <p className="mt-3 text-xs text-muted">
             (Just updated? Run the latest supabase/schema.sql to enable the
             digest.)
           </p>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
-import { Logo } from "@/components/Logo";
+import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import SendToCustomer from "@/components/SendToCustomer";
 import { GoogleDriveLogo } from "@/components/GoogleDriveLogo";
@@ -93,11 +93,7 @@ export default async function NoteDetailPage(props: {
 
   return (
     <div className="min-h-full flex flex-col">
-      <header className="w-full px-5 pt-5 pb-2">
-        <Link href="/">
-          <Logo size={30} />
-        </Link>
-      </header>
+      <AppHeader />
 
       <main className="flex-1 w-full max-w-3xl mx-auto px-5 pt-2 pb-28">
         <Link
