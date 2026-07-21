@@ -102,7 +102,11 @@ export async function updatePassword(
 
   const { error } = await supabase.auth.updateUser({ password });
   if (error) return { error: error.message };
-  redirect("/");
+
+  // End on a fresh sign-in with the new password, wherever the reset ran
+  // (Safari or the app's own web view).
+  await supabase.auth.signOut();
+  redirect("/login?reset=success");
 }
 
 export async function saveProfile(

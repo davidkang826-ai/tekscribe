@@ -12,9 +12,17 @@ export default function ForgotPasswordForm() {
 
   if (state.ok) {
     return (
-      <div className="rounded-lg bg-brand-50 text-brand text-sm px-4 py-3">
-        If an account exists for that email, we&apos;ve sent a password reset
-        link. Check your inbox (and spam).
+      <div className="space-y-4">
+        <div className="rounded-lg bg-brand-50 text-brand text-sm px-4 py-3">
+          If an account exists for that email, we&apos;ve sent a password reset
+          link. Check your inbox (and spam).
+        </div>
+        <p className="text-center text-sm text-muted">
+          Done resetting?{" "}
+          <Link href="/login" className="text-brand font-medium">
+            Back to sign in
+          </Link>
+        </p>
       </div>
     );
   }
