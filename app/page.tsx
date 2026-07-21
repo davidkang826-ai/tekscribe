@@ -89,7 +89,7 @@ export default async function Home() {
   return (
     // A fixed viewport: the Record screen itself never scrolls; once a note
     // is in flight the inner main scrolls under the header instead.
-    <div className="h-dvh flex flex-col overflow-hidden">
+    <div className="fixed inset-0 flex flex-col overflow-hidden bg-background">
       <AppHeader linkHome={false} />
 
       <main className="flex-1 min-h-0 flex flex-col overflow-y-auto overscroll-contain w-full max-w-3xl mx-auto px-5 pt-6 pb-28">

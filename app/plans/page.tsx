@@ -32,7 +32,7 @@ export default async function PlansPage(props: {
   if (!error && prof?.plan) currentPlan = prof.plan;
 
   return (
-    <div className="h-dvh flex flex-col overflow-hidden">
+    <div className="fixed inset-0 flex flex-col overflow-hidden bg-background">
       <AppHeader />
 
       <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain w-full max-w-3xl mx-auto px-5 pt-6 pb-28">
