@@ -19,13 +19,15 @@ const BG = "#f6f8fb";
 
 // The clipboard-with-heartbeat mark from components/Logo.tsx, tuned for icon
 // weight: no clip hole, and the pulse spike stops short of the clip so the
-// shapes stay distinct at thick stroke widths.
+// shapes stay distinct at thick stroke widths. The board (main square) is
+// centered on the viewBox center (50,50), so it sits dead-center in the tile;
+// the clip protrudes above it.
 const mark = (size, stroke) => `
   <svg width="${size}" height="${size}" viewBox="17 17 66 66" fill="none" xmlns="http://www.w3.org/2000/svg">
     <g stroke="${stroke}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none">
-      <path d="M40 30 H33 Q24 30 24 39 V71 Q24 80 33 80 H67 Q76 80 76 71 V39 Q76 30 67 30 H60" />
-      <rect x="40" y="23" width="20" height="11" rx="4" />
-      <polyline points="26,58 36,58 40,54 43,58 47,58 48,64 51,42 53,70 56,58 60,58 64,54 67,58 74,58" />
+      <path d="M40 25 H33 Q24 25 24 34 V66 Q24 75 33 75 H67 Q76 75 76 66 V34 Q76 25 67 25 H60" />
+      <rect x="40" y="18" width="20" height="11" rx="4" />
+      <polyline points="26,53 36,53 40,49 43,53 47,53 48,59 51,37 53,65 56,53 60,53 64,49 67,53 74,53" />
     </g>
   </svg>`;
 

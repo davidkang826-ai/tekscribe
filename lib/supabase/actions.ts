@@ -94,7 +94,7 @@ export async function resetPasswordWithCode(
   const confirm = String(formData.get("confirm") ?? "");
 
   if (!email || token.length < 6)
-    return { error: "Enter the 6-digit code from your email." };
+    return { error: "Enter the code from your email." };
   if (password.length < 8)
     return { error: "Password must be at least 8 characters." };
   if (password !== confirm)
