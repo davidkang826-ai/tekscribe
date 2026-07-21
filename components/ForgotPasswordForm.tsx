@@ -35,24 +35,24 @@ export default function ForgotPasswordForm() {
           </div>
         )}
         <p className="text-sm text-muted">
-          We sent a 6-digit code to{" "}
+          We sent a code to{" "}
           <span className="font-medium text-foreground">{email}</span>. Enter it
           below with your new password. (Check spam if you don&apos;t see it.)
         </p>
         <input type="hidden" name="email" value={email} />
         <div>
           <label className="block text-xs font-medium text-muted mb-1">
-            6-digit code
+            Code from your email
           </label>
           <input
             name="token"
             type="text"
             inputMode="numeric"
             autoComplete="one-time-code"
-            maxLength={6}
+            maxLength={10}
             required
-            placeholder="123456"
-            className={`${inputClass} tracking-[0.4em] text-center text-lg`}
+            placeholder="Enter the code"
+            className={`${inputClass} tracking-[0.3em] text-center text-lg`}
           />
         </div>
         <div>
