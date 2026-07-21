@@ -6,6 +6,7 @@ import SendToCustomer from "./SendToCustomer";
 import ScheduleNextVisit from "./ScheduleNextVisit";
 import { saveNote, updateNote } from "@/lib/supabase/notes";
 import { upsertCustomer } from "@/lib/supabase/customers";
+import { contactsAvailable, pickContact } from "@/lib/contacts";
 import { createClient } from "@/lib/supabase/client";
 import type { JobSummary, Customer, Attachment } from "@/lib/types";
 import {
@@ -156,6 +157,19 @@ export default function Recorder({
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [nameMatches, setNameMatches] = useState<Customer[]>([]);
+  // Native-only: offer to pull the client from the phone's address book.
+  const [canUseContacts, setCanUseContacts] = useState(false);
+  useEffect(() => setCanUseContacts(contactsAvailable()), []);
+
+  async function fillFromContacts() {
+    const c = await pickContact();
+    if (!c) return;
+    if (c.name) setCustomerName(c.name);
+    if (c.phone) setCustomerPhone(c.phone);
+    if (c.email) setCustomerEmail(c.email);
+    if (c.address) setCustomerAddress(c.address);
+    setNameMatches([]);
+  }
   const [attachments, setAttachments] = useState<Attach[]>([]);
   const [uploading, setUploading] = useState(false);
   const [viewing, setViewing] = useState<Attach | null>(null);
@@ -1214,8 +1228,19 @@ export default function Recorder({
               {/* Client details lead the review: name, phone, email, address */}
               {reviewStep === "confirm" && !editing && (
                 <div className="mb-4 rounded-xl bg-brand-50/60 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-brand mb-2">
-                    Client
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-brand">
+                      Client
+                    </div>
+                    {canUseContacts && (
+                      <button
+                        type="button"
+                        onClick={fillFromContacts}
+                        className="tt-pop rounded-full bg-surface px-3 py-1 text-xs font-medium text-brand ring-1 ring-border hover:bg-white transition"
+                      >
+                        📇 From Contacts
+                      </button>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <input

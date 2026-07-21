@@ -12,6 +12,7 @@ import {
 } from "@/lib/supabase/visits";
 import { TIME_OPTIONS, dateInputValue, combineDateTime } from "@/lib/times";
 import VoiceToNote from "./VoiceToNote";
+import { contactsAvailable, pickContact } from "@/lib/contacts";
 
 type Visit = {
   id: string;
@@ -84,6 +85,19 @@ export default function CalendarView() {
   const [feedUrl, setFeedUrl] = useState<string | null>(null);
   const [syncBusy, setSyncBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const [canUseContacts, setCanUseContacts] = useState(false);
+  useEffect(() => setCanUseContacts(contactsAvailable()), []);
+
+  async function fillFormFromContacts() {
+    const c = await pickContact();
+    if (!c || !form) return;
+    setForm({
+      ...form,
+      customer: c.name || form.customer,
+      address: c.address || form.address,
+    });
+  }
 
   async function openSync() {
     setSyncOpen(true);
@@ -519,9 +533,20 @@ export default function CalendarView() {
 
           <div className="mt-3 space-y-3">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
-                Customer
-              </label>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <label className="block text-xs font-semibold uppercase tracking-wide text-muted">
+                  Customer
+                </label>
+                {canUseContacts && (
+                  <button
+                    type="button"
+                    onClick={fillFormFromContacts}
+                    className="tt-pop rounded-full bg-surface px-3 py-1 text-xs font-medium text-brand ring-1 ring-border hover:bg-brand-50 transition"
+                  >
+                    📇 From Contacts
+                  </button>
+                )}
+              </div>
               <input
                 type="text"
                 list="tt-cal-customers"
