@@ -53,5 +53,7 @@
 	<string>TekScribe lets you attach photos of the job to a visit note.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>TekScribe lets you attach existing photos of the job to a visit note.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>TekScribe can fill in a client's name, phone, and email from your contacts so you don't have to type them.</string>
 </dict>
 </plist>
