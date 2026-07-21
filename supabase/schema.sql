@@ -73,6 +73,9 @@ create table if not exists public.voice_notes (
 -- For existing databases:
 alter table public.voice_notes add column if not exists customer_name text;
 alter table public.voice_notes add column if not exists attachments jsonb;
+-- Customer contact captured with the visit, shown at the top of the note.
+alter table public.voice_notes add column if not exists customer_phone text;
+alter table public.voice_notes add column if not exists customer_address text;
 
 -- Google Drive backup receipt: which customer folder this note synced into
 -- and when. Written by the after-save sync; shown in the Archive as a
@@ -214,8 +217,12 @@ create table if not exists public.customers (
   name text not null,
   email text,
   phone text,
+  address text,
   created_at timestamptz not null default now()
 );
+
+-- For existing databases:
+alter table public.customers add column if not exists address text;
 
 alter table public.customers enable row level security;
 

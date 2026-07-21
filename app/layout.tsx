@@ -26,6 +26,14 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#ffffff",
+  width: "device-width",
+  initialScale: 1,
+  // Fill the screen edge to edge and let the app pad for the notch / home
+  // indicator itself (see safe-area handling in globals.css). Locking zoom
+  // stops iOS from bouncing the layout when an input is focused.
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

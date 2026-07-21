@@ -17,53 +17,38 @@ type Visit = {
   scheduled_at: string;
 };
 
-type MapPref = "google" | "apple";
 const MAP_KEY = "tekscribe.map-pref";
-
-function readMapPref(): MapPref {
-  try {
-    return localStorage.getItem(MAP_KEY) === "apple" ? "apple" : "google";
-  } catch {
-    return "google";
-  }
-}
-
-function mapUrl(service: MapPref, address: string): string {
+function mapHref(address: string): string {
   const q = encodeURIComponent(address);
-  return service === "apple"
+  let apple = false;
+  try {
+    apple = localStorage.getItem(MAP_KEY) === "apple";
+  } catch {
+    // default Google
+  }
+  return apple
     ? `https://maps.apple.com/?q=${q}`
     : `https://www.google.com/maps/search/?api=1&query=${q}`;
 }
 
-type LastVisit = {
-  noteId: string;
-  when: string;
-  didSummary: string;
-  bring: string[];
+type Enriched = Visit & {
+  phone?: string | null;
+  addr?: string | null;
+  lastVisit?: string; // one short line
+  todoLine?: string; // what to do + bring, combined
 };
 
-type Row = Visit & { last?: LastVisit };
-
-/** First `n` items as one short readable sentence-ish line. */
-function brief(items: string[] | undefined, n: number): string {
-  return (items ?? []).slice(0, n).join(". ");
+/** One tight line from a couple of bullet fragments. */
+function oneLine(items: string[] | undefined, max = 2): string {
+  return (items ?? [])
+    .slice(0, max)
+    .map((s) => s.trim().replace(/\.+$/, ""))
+    .join("; ");
 }
 
 export default function DigestList() {
-  const [rows, setRows] = useState<Row[] | null>(null);
+  const [rows, setRows] = useState<Enriched[] | null>(null);
   const [needsMigration, setNeedsMigration] = useState(false);
-  // Lazy init: runs on the client only after hydration-safe loading UI, and
-  // the server fallback inside readMapPref covers SSR.
-  const [mapPref, setMapPref] = useState<MapPref>(() => readMapPref());
-
-  function chooseMap(service: MapPref) {
-    setMapPref(service);
-    try {
-      localStorage.setItem(MAP_KEY, service);
-    } catch {
-      // fine
-    }
-  }
 
   useEffect(() => {
     let cancelled = false;
@@ -75,8 +60,6 @@ export default function DigestList() {
       const dayEnd = new Date(dayStart);
       dayEnd.setDate(dayEnd.getDate() + 1);
 
-      // Ask for kind/address too, falling back for databases where that
-      // part of the migration hasn't run yet.
       let visits: Visit[] | null = null;
       const full = await supabase
         .from("scheduled_visits")
@@ -98,44 +81,66 @@ export default function DigestList() {
 
       if (cancelled) return;
       if (visits === null) {
-        // Most likely the scheduled_visits migration hasn't run yet.
         setNeedsMigration(true);
         setRows([]);
         return;
       }
 
-      // For each visit, the most recent saved note for that customer: what
-      // was done last time, and what to buy/bring (from its next steps).
-      const withLast = await Promise.all(
-        (visits ?? []).map(async (v: Visit): Promise<Row> => {
-          if (!v.customer_name) return v;
-          const { data: note } = await supabase
-            .from("voice_notes")
-            .select("id, summary, created_at")
-            .eq("customer_name", v.customer_name)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          if (!note) return v;
-          const s = (note.summary ?? null) as JobSummary | null;
+      // Customer directory for phone/address lookups (tolerant of no address).
+      const contacts = new Map<
+        string,
+        { phone: string | null; address: string | null }
+      >();
+      const cust = await supabase
+        .from("customers")
+        .select("name, phone, address");
+      const custRows = cust.error
+        ? (await supabase.from("customers").select("name, phone")).data
+        : cust.data;
+      for (const c of custRows ?? []) {
+        const rec = c as { name: string; phone: string | null; address?: string | null };
+        contacts.set(rec.name.trim().toLowerCase(), {
+          phone: rec.phone ?? null,
+          address: rec.address ?? null,
+        });
+      }
+
+      const enriched = await Promise.all(
+        (visits ?? []).map(async (v: Visit): Promise<Enriched> => {
+          const contact = v.customer_name
+            ? contacts.get(v.customer_name.trim().toLowerCase())
+            : undefined;
+          let lastVisit: string | undefined;
+          let bring: string[] = [];
+          if (v.customer_name) {
+            const { data: note } = await supabase
+              .from("voice_notes")
+              .select("summary")
+              .eq("customer_name", v.customer_name)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            const s = (note?.summary ?? null) as JobSummary | null;
+            lastVisit = oneLine(s?.workDone, 2) || undefined;
+            bring =
+              s?.nextSteps
+                ?.filter((x) => /^buy\s*:/i.test(x.trim()))
+                .map((x) => x.replace(/^buy\s*:\s*/i, "")) ?? [];
+          }
+          // Combine "what to do" and "what to bring" into one line.
+          const todoParts: string[] = [];
+          if (v.todo?.trim()) todoParts.push(v.todo.trim());
+          if (bring.length) todoParts.push(`Bring: ${bring.join(", ")}`);
           return {
             ...v,
-            last: {
-              noteId: note.id as string,
-              when: new Date(note.created_at as string).toLocaleDateString(
-                undefined,
-                { month: "short", day: "numeric" }
-              ),
-              didSummary: brief(s?.workDone, 2),
-              bring:
-                s?.nextSteps
-                  ?.filter((x) => /^buy\s*:/i.test(x.trim()))
-                  .map((x) => x.replace(/^buy\s*:\s*/i, "")) ?? [],
-            },
+            phone: contact?.phone ?? null,
+            addr: v.address || contact?.address || null,
+            lastVisit,
+            todoLine: todoParts.join(" · ") || undefined,
           };
         })
       );
-      if (!cancelled) setRows(withLast);
+      if (!cancelled) setRows(enriched);
     })();
     return () => {
       cancelled = true;
@@ -157,13 +162,12 @@ export default function DigestList() {
           Nothing on the books today.
         </p>
         <p className="mt-2 text-sm">
-          When you finish a note, the &quot;Schedule next visit&quot; step files
-          the visit here automatically.
+          Scheduling a visit or call files it here automatically.
         </p>
         {needsMigration && (
           <p className="mt-3 text-xs">
-            (Just updated? Run the latest supabase/schema.sql in the Supabase
-            SQL editor to enable the digest.)
+            (Just updated? Run the latest supabase/schema.sql to enable the
+            digest.)
           </p>
         )}
       </div>
@@ -172,86 +176,79 @@ export default function DigestList() {
 
   return (
     <ul className="mt-6 space-y-3">
-      {rows.map((v) => (
-        <li
-          key={v.id}
-          className="tt-elevate rounded-2xl border border-border bg-surface p-5"
-        >
-          <div className="flex items-baseline justify-between gap-3">
-            <h3 className="font-semibold text-foreground">
-              {v.kind === "call" ? "📞 " : ""}
-              {v.customer_name || "No customer"}
-              {v.kind === "call" && (
-                <span className="ml-2 rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand align-middle">
-                  Call
+      {rows.map((v) => {
+        const isCall = v.kind === "call";
+        return (
+          <li
+            key={v.id}
+            className="tt-elevate rounded-2xl border border-border bg-surface p-4"
+          >
+            <div className="flex items-baseline justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <h3 className="font-semibold text-foreground truncate">
+                  {v.customer_name || "No customer"}
+                </h3>
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                    isCall
+                      ? "bg-brand-50 text-brand"
+                      : "bg-green-100 text-success"
+                  }`}
+                >
+                  {isCall ? "Call" : "Visit"}
                 </span>
-              )}
-            </h3>
-            <time className="text-sm font-semibold text-brand whitespace-nowrap">
-              {new Date(v.scheduled_at).toLocaleTimeString(undefined, {
-                hour: "numeric",
-                minute: "2-digit",
-              })}
-            </time>
-          </div>
-          {v.reason && <p className="mt-0.5 text-xs text-muted">{v.reason}</p>}
-
-          {v.address && (
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-              <span className="text-muted">📍 {v.address}</span>
-              <a
-                href={mapUrl(mapPref, v.address)}
-                target="_blank"
-                rel="noreferrer"
-                onClick={() => chooseMap(mapPref)}
-                className="font-medium text-brand hover:underline"
-              >
-                Open in {mapPref === "apple" ? "Apple" : "Google"} Maps
-              </a>
-              <a
-                href={mapUrl(mapPref === "apple" ? "google" : "apple", v.address)}
-                target="_blank"
-                rel="noreferrer"
-                onClick={() =>
-                  chooseMap(mapPref === "apple" ? "google" : "apple")
-                }
-                className="text-xs text-muted hover:text-foreground hover:underline"
-              >
-                or {mapPref === "apple" ? "Google" : "Apple"} Maps
-              </a>
+              </div>
+              <time className="shrink-0 text-sm font-semibold text-brand whitespace-nowrap">
+                {new Date(v.scheduled_at).toLocaleTimeString(undefined, {
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </time>
             </div>
-          )}
 
-          {v.todo && (
-            <p className="mt-3 text-[15px] text-foreground">
-              <span className="font-medium">To do:</span> {v.todo}
-            </p>
-          )}
+            {/* Direct action: call → phone; visit → address + map */}
+            {isCall && v.phone && (
+              <a
+                href={`tel:${v.phone.replace(/[^\d+]/g, "")}`}
+                className="mt-1.5 inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
+              >
+                📞 {v.phone}
+              </a>
+            )}
+            {!isCall && v.addr && (
+              <a
+                href={mapHref(v.addr)}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1.5 inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
+              >
+                📍 {v.addr}
+              </a>
+            )}
 
-          {v.last?.didSummary && (
-            <p className="mt-2 text-sm text-muted">
-              <span className="font-medium text-foreground">Last visit</span> (
-              {v.last.when}): {v.last.didSummary}
-            </p>
-          )}
+            {v.lastVisit && (
+              <p className="mt-2 text-sm text-muted">
+                <span className="font-medium text-foreground">Last time:</span>{" "}
+                {v.lastVisit}
+              </p>
+            )}
+            {v.todoLine && (
+              <p className="mt-1 text-sm text-foreground">
+                <span className="font-medium">This time:</span> {v.todoLine}
+              </p>
+            )}
 
-          {v.last && v.last.bring.length > 0 && (
-            <p className="mt-2 text-sm text-accent-600">
-              <span className="font-medium">Bring / buy:</span>{" "}
-              {v.last.bring.join(", ")}
-            </p>
-          )}
-
-          {(v.note_id || v.last?.noteId) && (
-            <Link
-              href={`/notes/${v.note_id || v.last?.noteId}`}
-              className="mt-3 inline-block text-xs font-medium text-brand hover:underline"
-            >
-              Previous visit note
-            </Link>
-          )}
-        </li>
-      ))}
+            {v.note_id && (
+              <Link
+                href={`/notes/${v.note_id}`}
+                className="mt-2 inline-block text-xs font-medium text-brand hover:underline"
+              >
+                Previous visit note
+              </Link>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

@@ -34,10 +34,25 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html {
+  /* Never scroll sideways; the notch/home-indicator safe areas are padded
+     on the elements that need them, not the whole page. */
+  overflow-x: hidden;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+  /* Respect the status bar / notch at the top so the header isn't clipped. */
+  padding-top: env(safe-area-inset-top);
+}
+
+/* 100dvh tracks the *visible* viewport on mobile (toolbars in/out), so the
+   app fills the screen exactly instead of running tall under the browser UI. */
+.min-h-full {
+  min-height: 100dvh;
 }
 
 /* Buttons don't get the hand cursor by default — give interactive ones one. */
@@ -149,12 +164,12 @@ button:disabled {
    Asymmetric timing keeps it snappy: exit 120ms, enter 200ms.
 --------------------------------------------------------------------------- */
 ::view-transition-old(.tt-page) {
-  animation: 120ms ease-in both tt-vt-fade reverse;
+  animation: 90ms ease-in both tt-vt-fade reverse;
 }
 ::view-transition-new(.tt-page) {
   animation:
-    200ms ease-out 60ms both tt-vt-fade,
-    260ms cubic-bezier(0.22, 1, 0.36, 1) both tt-vt-lift;
+    140ms ease-out 40ms both tt-vt-fade,
+    180ms cubic-bezier(0.22, 1, 0.36, 1) both tt-vt-lift;
 }
 @keyframes tt-vt-fade {
   from { opacity: 0; }

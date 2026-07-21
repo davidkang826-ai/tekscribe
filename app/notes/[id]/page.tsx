@@ -31,26 +31,41 @@ export default async function NoteDetailPage(props: {
     transcript: string;
     summary: unknown;
     customer_email: string | null;
+    customer_phone?: string | null;
+    customer_address?: string | null;
     attachments: unknown;
     created_at: string;
     drive_folder_id?: string | null;
     drive_synced_at?: string | null;
   };
   let note: NoteRecord | null = null;
-  const withDrive = await supabase
+  // Try the fullest select; fall back progressively for databases where the
+  // contact / Drive columns don't exist yet.
+  const full = await supabase
     .from("voice_notes")
-    .select(`${noteCols}, drive_folder_id, drive_synced_at`)
+    .select(
+      `${noteCols}, customer_phone, customer_address, drive_folder_id, drive_synced_at`
+    )
     .eq("id", id)
     .single();
-  if (!withDrive.error) {
-    note = withDrive.data;
+  if (!full.error) {
+    note = full.data;
   } else {
-    const { data } = await supabase
+    const withDrive = await supabase
       .from("voice_notes")
-      .select(noteCols)
+      .select(`${noteCols}, drive_folder_id, drive_synced_at`)
       .eq("id", id)
       .single();
-    note = data;
+    if (!withDrive.error) {
+      note = withDrive.data;
+    } else {
+      const { data } = await supabase
+        .from("voice_notes")
+        .select(noteCols)
+        .eq("id", id)
+        .single();
+      note = data;
+    }
   }
   if (!note) notFound();
 
@@ -104,8 +119,53 @@ export default async function NoteDetailPage(props: {
             })}
           </time>
         </div>
-        {note.customer_name && (
-          <p className="mt-1 text-sm text-muted">👤 {note.customer_name}</p>
+
+        {/* Client details lead the note: name, phone, email, address, each
+            tappable to call, email, or open in maps. */}
+        {(note.customer_name ||
+          note.customer_phone ||
+          note.customer_email ||
+          note.customer_address) && (
+          <div className="mt-3 rounded-2xl border border-border bg-brand-50/60 p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-brand mb-2">
+              Client
+            </div>
+            {note.customer_name && (
+              <p className="text-base font-semibold text-foreground">
+                {note.customer_name}
+              </p>
+            )}
+            <div className="mt-1 space-y-1 text-sm">
+              {note.customer_phone && (
+                <a
+                  href={`tel:${note.customer_phone.replace(/[^\d+]/g, "")}`}
+                  className="block font-medium text-brand hover:underline"
+                >
+                  📞 {note.customer_phone}
+                </a>
+              )}
+              {note.customer_email && (
+                <a
+                  href={`mailto:${note.customer_email}`}
+                  className="block font-medium text-brand hover:underline"
+                >
+                  ✉️ {note.customer_email}
+                </a>
+              )}
+              {note.customer_address && (
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                    note.customer_address
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block font-medium text-brand hover:underline"
+                >
+                  📍 {note.customer_address}
+                </a>
+              )}
+            </div>
+          </div>
         )}
 
         {note.drive_folder_id && note.drive_synced_at && (

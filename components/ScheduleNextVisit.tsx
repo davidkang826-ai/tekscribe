@@ -276,8 +276,8 @@ export default function ScheduleNextVisit({
           )}
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <div>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <div className="min-w-0">
             <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
               Date
             </label>
@@ -285,10 +285,10 @@ export default function ScheduleNextVisit({
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+              className="block w-full min-w-0 rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
               Time
             </label>
@@ -297,7 +297,7 @@ export default function ScheduleNextVisit({
             <select
               value={time}
               onChange={(e) => setTime(e.target.value)}
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+              className="block w-full min-w-0 rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
             >
               {TIME_OPTIONS.map((t) => (
                 <option key={t.value} value={t.value}>

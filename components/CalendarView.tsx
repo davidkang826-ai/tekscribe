@@ -73,6 +73,7 @@ export default function CalendarView() {
   const [form, setForm] = useState<FormState | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const loadMonth = useCallback(async () => {
     const supabase = createClient();
@@ -387,12 +388,39 @@ export default function CalendarView() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => remove(v.id)}
+                    onClick={() => setConfirmDelete(v.id)}
                     className="rounded-full px-3 py-1.5 text-danger ring-1 ring-border hover:bg-red-50 transition"
                   >
                     Delete
                   </button>
                 </div>
+
+                {confirmDelete === v.id && (
+                  <div className="tt-fade-in mt-3 rounded-xl bg-red-50 p-3 ring-1 ring-red-100">
+                    <p className="text-sm font-medium text-foreground">
+                      Delete this event?
+                    </p>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfirmDelete(null);
+                          remove(v.id);
+                        }}
+                        className="rounded-lg bg-danger px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition"
+                      >
+                        Yes, delete
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDelete(null)}
+                        className="rounded-lg px-3.5 py-1.5 text-xs font-medium text-muted ring-1 ring-border hover:text-foreground transition"
+                      >
+                        Keep it
+                      </button>
+                    </div>
+                  </div>
+                )}
               </li>
             );
           })}
@@ -478,8 +506,8 @@ export default function CalendarView() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="min-w-0">
                 <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
                   Date
                 </label>
@@ -487,17 +515,17 @@ export default function CalendarView() {
                   type="date"
                   value={form.date}
                   onChange={(e) => setForm({ ...form, date: e.target.value })}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                  className="block w-full min-w-0 rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
                   Time
                 </label>
                 <select
                   value={form.time}
                   onChange={(e) => setForm({ ...form, time: e.target.value })}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                  className="block w-full min-w-0 rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
                 >
                   {TIME_OPTIONS.map((t) => (
                     <option key={t.value} value={t.value}>

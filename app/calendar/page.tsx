@@ -27,10 +27,6 @@ export default async function CalendarPage() {
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Calendar
         </h1>
-        <p className="mt-1 text-sm text-muted">
-          Your work schedule. Visits scheduled from notes land here
-          automatically.
-        </p>
 
         {/* Client-side so days and times use the tech's timezone. */}
         <CalendarView />
