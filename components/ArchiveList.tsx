@@ -148,7 +148,6 @@ export default function ArchiveList({
 
       {/* Sort chips */}
       <div className="mb-5 flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-xs text-muted">Sort by</span>
         {SORTS.map((s) => (
           <button
             key={s.key}
@@ -175,16 +174,13 @@ export default function ArchiveList({
             <div key={group.name ?? `no-customer-${gi}`}>
               {hasCustomers && (
                 <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                  <span>👤 {group.name ?? "No customer"}</span>
-                  <span className="text-xs font-normal text-muted">
-                    {group.notes.length}
-                  </span>
+                  <span className="truncate">{group.name ?? "No customer"}</span>
                   {group.nextVisit && (
                     <Link
                       href="/calendar"
-                      className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-semibold text-brand hover:bg-brand/10 transition"
+                      className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-semibold text-brand hover:bg-brand/10 transition"
                     >
-                      Next visit{" "}
+                      Next{" "}
                       {new Date(group.nextVisit).toLocaleDateString(undefined, {
                         month: "short",
                         day: "numeric",
@@ -200,10 +196,10 @@ export default function ArchiveList({
                         href={`https://drive.google.com/drive/folders/${folder}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-brand hover:underline"
+                        aria-label="Open in Google Drive"
+                        className="ml-auto shrink-0"
                       >
-                        <GoogleDriveLogo size={13} />
-                        Open in Google Drive
+                        <GoogleDriveLogo size={15} />
                       </a>
                     ) : null;
                   })()}
@@ -259,14 +255,7 @@ function NoteCard({ note }: { note: ArchiveNote }) {
         </div>
 
         {!open ? (
-          <>
-            <p className="mt-2 text-[15px] text-muted line-clamp-1">
-              {preview}
-            </p>
-            <p className="mt-2 text-xs text-brand font-medium">
-              Tap for details
-            </p>
-          </>
+          <p className="mt-2 text-[15px] text-muted line-clamp-1">{preview}</p>
         ) : (
           <div className="tt-fade-in">
             {note.summary?.workDone?.length ? (

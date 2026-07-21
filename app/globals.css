@@ -45,8 +45,9 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
-  /* Respect the status bar / notch at the top so the header isn't clipped. */
-  padding-top: env(safe-area-inset-top);
+  /* No rubber-band bounce dragging the whole app around. The sticky
+     AppHeader carries the status-bar safe area. */
+  overscroll-behavior-y: none;
 }
 
 /* 100dvh tracks the *visible* viewport on mobile (toolbars in/out), so the

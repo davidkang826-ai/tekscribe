@@ -251,7 +251,7 @@ export default function ScheduleNextVisit({
         {kind === "visit" && (
           <div className="mt-3">
             <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
-              Client address (optional)
+              Address
             </label>
             <input
               type="text"
@@ -261,9 +261,6 @@ export default function ScheduleNextVisit({
               autoComplete="street-address"
               className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
             />
-            <p className="mt-1 text-xs text-muted">
-              Goes on the calendar event and the Daily Digest, with a map link.
-            </p>
           </div>
         )}
 
@@ -279,9 +276,7 @@ export default function ScheduleNextVisit({
             className="w-full rounded-lg border border-border bg-surface p-3 text-[15px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/30"
           />
           {bringList && (
-            <p className="mt-1 text-xs text-muted">
-              Bring: {bringList} (goes in the event notes)
-            </p>
+            <p className="mt-1 text-xs text-muted">Bring: {bringList}</p>
           )}
         </div>
 

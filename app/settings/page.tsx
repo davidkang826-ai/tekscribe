@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Logo } from "@/components/Logo";
+import AppHeader from "@/components/AppHeader";
 import SignOutButton from "@/components/SignOutButton";
 import BottomNav from "@/components/BottomNav";
 import SettingsForm from "@/components/SettingsForm";
@@ -106,21 +106,12 @@ export default async function SettingsPage(props: {
 
   return (
     <div className="min-h-full flex flex-col">
-      <header className="w-full px-5 pt-5 pb-2">
-        <Link href="/">
-          <Logo size={30} />
-        </Link>
-      </header>
+      <AppHeader />
 
       <main className="flex-1 w-full max-w-lg mx-auto px-5 pt-4 pb-28 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Settings
-          </h1>
-          <p className="mt-1 text-sm text-muted">
-            Your name and where customer replies go.
-          </p>
-        </div>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          Settings
+        </h1>
 
         {drive === "connected" && (
           <div className="rounded-lg bg-green-50 px-3 py-2.5 text-sm text-success ring-1 ring-green-100">

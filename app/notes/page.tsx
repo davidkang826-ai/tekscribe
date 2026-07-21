@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Logo } from "@/components/Logo";
+import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import ArchiveList, { type ArchiveNote } from "@/components/ArchiveList";
 import { createClient } from "@/lib/supabase/server";
@@ -55,11 +54,7 @@ export default async function NotesPage() {
 
   return (
     <div className="min-h-full flex flex-col">
-      <header className="w-full px-5 pt-5 pb-2">
-        <Link href="/">
-          <Logo size={30} />
-        </Link>
-      </header>
+      <AppHeader />
 
       <main className="flex-1 w-full max-w-3xl mx-auto px-5 pt-4 pb-28">
         <h1 className="text-2xl font-bold tracking-tight text-foreground mb-4">

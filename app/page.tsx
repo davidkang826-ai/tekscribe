@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Logo } from "@/components/Logo";
+import AppHeader from "@/components/AppHeader";
 import Recorder from "@/components/Recorder";
 import BottomNav from "@/components/BottomNav";
 import DriveBackupPrompt from "@/components/DriveBackupPrompt";
@@ -87,12 +87,12 @@ export default async function Home() {
   }
 
   return (
-    <div className="min-h-full flex flex-col">
-      <header className="w-full px-5 pt-5 pb-2">
-        <Logo size={30} />
-      </header>
+    // A fixed viewport: the Record screen itself never scrolls; once a note
+    // is in flight the inner main scrolls under the header instead.
+    <div className="h-dvh flex flex-col overflow-hidden">
+      <AppHeader linkHome={false} />
 
-      <main className="flex-1 flex flex-col w-full max-w-3xl mx-auto px-5 pt-6 pb-28">
+      <main className="flex-1 flex flex-col overflow-y-auto overscroll-contain w-full max-w-3xl mx-auto px-5 pt-6 pb-28">
         {/* my-auto centers the greeting + mic in the viewport on tall screens
             and degrades to normal top flow once content grows past it. The
             greeting itself lives in Recorder so it disappears after
