@@ -20,6 +20,10 @@ alter table public.profiles add column if not exists reply_to_email text;
 -- Editable in Settings so they can go by a nickname if they want.
 alter table public.profiles add column if not exists display_name text;
 
+-- A secret token in the tech's private .ics calendar feed URL, so Apple/Google
+-- Calendar can subscribe and auto-refresh their scheduled visits.
+alter table public.profiles add column if not exists calendar_token uuid default gen_random_uuid();
+
 alter table public.profiles enable row level security;
 
 drop policy if exists "own profile - select" on public.profiles;

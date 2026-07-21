@@ -4,8 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { LogoMark } from "./Logo";
 import { createClient } from "@/lib/supabase/client";
-import { scheduleVisit, updateVisit, deleteVisit } from "@/lib/supabase/visits";
+import {
+  scheduleVisit,
+  updateVisit,
+  deleteVisit,
+  getCalendarToken,
+} from "@/lib/supabase/visits";
 import { TIME_OPTIONS, dateInputValue, combineDateTime } from "@/lib/times";
+import VoiceToNote from "./VoiceToNote";
 
 type Visit = {
   id: string;
@@ -74,6 +80,19 @@ export default function CalendarView() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [syncOpen, setSyncOpen] = useState(false);
+  const [feedUrl, setFeedUrl] = useState<string | null>(null);
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function openSync() {
+    setSyncOpen(true);
+    if (feedUrl || syncBusy) return;
+    setSyncBusy(true);
+    const { token } = await getCalendarToken();
+    if (token) setFeedUrl(`${window.location.origin}/api/calendar/${token}`);
+    setSyncBusy(false);
+  }
 
   const loadMonth = useCallback(async () => {
     const supabase = createClient();
@@ -208,6 +227,70 @@ export default function CalendarView() {
 
   return (
     <div>
+      {/* Sync this calendar into the tech's Apple/Google calendar */}
+      <div className="mt-3">
+        <button
+          type="button"
+          onClick={() => (syncOpen ? setSyncOpen(false) : openSync())}
+          className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3.5 py-2 text-sm font-medium text-brand ring-1 ring-border hover:bg-brand-50 transition"
+        >
+          🔄 Sync to my calendar
+        </button>
+        {syncOpen && (
+          <div className="tt-fade-in mt-2 rounded-2xl border border-border bg-surface p-4 text-sm shadow-sm">
+            {syncBusy || !feedUrl ? (
+              <p className="text-muted">Preparing your calendar link…</p>
+            ) : (
+              <>
+                <p className="text-muted">
+                  Add this once and every TekScribe visit shows up in your
+                  calendar and stays updated.
+                </p>
+                <div className="mt-3 flex flex-col gap-2">
+                  {/* Apple / i-devices: webcal opens the subscribe sheet. */}
+                  <a
+                    href={feedUrl.replace(/^https?:/, "webcal:")}
+                    className="rounded-lg bg-brand px-4 py-2.5 text-center font-semibold text-white shadow-sm hover:bg-brand-600 transition"
+                  >
+                    Add to Apple Calendar
+                  </a>
+                  {/* Google: subscribe by URL. */}
+                  <a
+                    href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(
+                      feedUrl
+                    )}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg bg-surface px-4 py-2.5 text-center font-semibold text-foreground ring-1 ring-border hover:bg-slate-50 transition"
+                  >
+                    Add to Google Calendar
+                  </a>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(feedUrl);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      } catch {
+                        // ignore
+                      }
+                    }}
+                    className="text-xs font-medium text-muted hover:text-foreground"
+                  >
+                    {copied ? "✓ Link copied" : "Or copy the calendar link"}
+                  </button>
+                </div>
+                <p className="mt-3 text-xs text-muted">
+                  This is a one-way feed: events flow from TekScribe into your
+                  calendar. Keep the link private.
+                </p>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Month header */}
       <div className="mt-4 flex items-center justify-between">
         <button
@@ -504,6 +587,19 @@ export default function CalendarView() {
                 placeholder="What this visit or call is for"
                 className="w-full rounded-lg border border-border bg-surface p-3 text-[15px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/30"
               />
+              {/* Talk it through instead of typing; the AI tightens it up and
+                  appends it to whatever's already in the notes. */}
+              <div className="mt-2">
+                <VoiceToNote
+                  onResult={(note) =>
+                    setForm((f) =>
+                      f
+                        ? { ...f, todo: f.todo ? `${f.todo.trim()} ${note}` : note }
+                        : f
+                    )
+                  }
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

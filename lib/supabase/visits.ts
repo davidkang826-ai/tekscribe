@@ -88,6 +88,37 @@ export async function updateVisit(input: {
   return {};
 }
 
+/** Get (creating if needed) the secret token for this tech's calendar feed,
+ *  so Apple/Google Calendar can subscribe to their scheduled visits. */
+export async function getCalendarToken(): Promise<{
+  token?: string;
+  error?: string;
+}> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Sign in first." };
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("calendar_token")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (error) return { error: error.message };
+
+  let token = data?.calendar_token as string | null | undefined;
+  if (!token) {
+    token = crypto.randomUUID();
+    const upd = await supabase
+      .from("profiles")
+      .update({ calendar_token: token })
+      .eq("id", user.id);
+    if (upd.error) return { error: upd.error.message };
+  }
+  return { token };
+}
+
 /** Remove a scheduled visit. */
 export async function deleteVisit(id: string): Promise<{ error?: string }> {
   const supabase = await createClient();
