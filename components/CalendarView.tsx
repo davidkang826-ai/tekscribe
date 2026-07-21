@@ -627,34 +627,33 @@ export default function CalendarView() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="min-w-0">
-                <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
-                  Date
-                </label>
-                <input
-                  type="date"
-                  value={form.date}
-                  onChange={(e) => setForm({ ...form, date: e.target.value })}
-                  className="block w-full min-w-0 rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-                />
-              </div>
-              <div className="min-w-0">
-                <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
-                  Time
-                </label>
-                <select
-                  value={form.time}
-                  onChange={(e) => setForm({ ...form, time: e.target.value })}
-                  className="block w-full min-w-0 rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-                >
-                  {TIME_OPTIONS.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {/* Date and time on their own rows so neither gets cramped. */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+                Date
+              </label>
+              <input
+                type="date"
+                value={form.date}
+                onChange={(e) => setForm({ ...form, date: e.target.value })}
+                className="block w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+                Time
+              </label>
+              <select
+                value={form.time}
+                onChange={(e) => setForm({ ...form, time: e.target.value })}
+                className="block w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+              >
+                {TIME_OPTIONS.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="flex gap-2 pt-1">

@@ -1310,7 +1310,7 @@ export default function Recorder({
                 </div>
               )}
 
-              {reviewStep !== "send" && (
+              {reviewStep === "confirm" && (
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <span className="text-xs font-semibold uppercase tracking-wide text-accent-600">
                     AI Summary
@@ -1339,8 +1339,8 @@ export default function Recorder({
                   messageDirty={messageDirty}
                   onMessageManualEdit={() => setMessageDirty(true)}
                 />
-              ) : reviewStep === "send" ? // Step 3 is purely about sending; the note itself is edited on
-              // step 2 (the back link below returns there).
+              ) : reviewStep !== "confirm" ? // Steps 3 (send) and 4 (schedule) don't repeat the note; it's
+              // reviewed and edited on step 2.
               null : (
                 <>
                   <h3 className="text-lg font-semibold text-foreground tt-fade-in">
@@ -1515,8 +1515,10 @@ export default function Recorder({
                   {reviewStep === "schedule" && (
                     <ScheduleNextVisit
                       customerName={customerName}
+                      customerAddress={customerAddress}
                       jobTitle={summary.jobTitle}
                       nextSteps={summary.nextSteps}
+                      customerRequests={summary.customerRequests}
                       noteId={noteId}
                       onDone={() => setReviewStep("done")}
                     />

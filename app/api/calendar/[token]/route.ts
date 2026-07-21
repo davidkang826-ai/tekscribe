@@ -41,6 +41,38 @@ export async function GET(
     .eq("user_id", profile.id)
     .order("scheduled_at", { ascending: true });
 
+  // Customer directory for phone/email/address, so each event carries the
+  // full contact even when the visit row itself only had a name.
+  const contacts = new Map<
+    string,
+    { phone: string | null; email: string | null; address: string | null }
+  >();
+  const custFull = await admin
+    .from("customers")
+    .select("name, phone, email, address")
+    .eq("user_id", profile.id);
+  const custRows = custFull.error
+    ? (
+        await admin
+          .from("customers")
+          .select("name, phone, email")
+          .eq("user_id", profile.id)
+      ).data
+    : custFull.data;
+  for (const c of custRows ?? []) {
+    const rec = c as {
+      name: string;
+      phone: string | null;
+      email: string | null;
+      address?: string | null;
+    };
+    contacts.set(rec.name.trim().toLowerCase(), {
+      phone: rec.phone ?? null,
+      email: rec.email ?? null,
+      address: rec.address ?? null,
+    });
+  }
+
   const now = stamp(new Date());
   const lines: string[] = [
     "BEGIN:VCALENDAR",
@@ -63,7 +95,20 @@ export async function GET(
     const end = new Date(start.getTime() + mins * 60 * 1000);
     const who = (v.customer_name as string) || (v.reason as string) || "Visit";
     const title = isCall ? `Call ${who}` : `Next visit: ${who}`;
-    const descParts = [v.reason, v.todo].filter(Boolean) as string[];
+    const contact = v.customer_name
+      ? contacts.get((v.customer_name as string).trim().toLowerCase())
+      : undefined;
+    const address = (v.address as string) || contact?.address || "";
+
+    // Everything the tech needs on the event, so the phone's calendar shows
+    // the full picture: who, contact, what it's for.
+    const descParts: string[] = [];
+    if (v.customer_name) descParts.push(`Client: ${v.customer_name}`);
+    if (contact?.phone) descParts.push(`Phone: ${contact.phone}`);
+    if (contact?.email) descParts.push(`Email: ${contact.email}`);
+    if (address) descParts.push(`Address: ${address}`);
+    if (v.todo) descParts.push(`Notes: ${v.todo}`);
+    else if (v.reason) descParts.push(v.reason as string);
 
     lines.push(
       "BEGIN:VEVENT",
@@ -73,8 +118,13 @@ export async function GET(
       `DTEND:${stamp(end)}`,
       `SUMMARY:${esc(title)}`
     );
-    if (!isCall && v.address) lines.push(`LOCATION:${esc(v.address as string)}`);
-    if (descParts.length) lines.push(`DESCRIPTION:${esc(descParts.join(" - "))}`);
+    if (address) lines.push(`LOCATION:${esc(address)}`);
+    if (contact?.phone) {
+      // A tappable phone number on the event, where calendars support it.
+      lines.push(`CONTACT:${esc(contact.phone)}`);
+    }
+    if (descParts.length)
+      lines.push(`DESCRIPTION:${esc(descParts.join("\n"))}`);
     lines.push("END:VEVENT");
   }
 
