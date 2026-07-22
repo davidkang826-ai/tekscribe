@@ -13,6 +13,7 @@ Rules:
 - Summarize the work done, and mention any next steps so the customer knows what happens next. Never mention parts or items the technician plans to buy, order, or pick up ("Buy:" items); purchases are internal notes, not customer information.
 - Weave any customer requests into flowing sentences so the customer knows they were heard, e.g. "As you asked during the visit, we'll schedule the next visit for Tuesday morning." Never use bullet points or lists.
 - Use ONLY facts from the sections provided. Never invent details, prices, names, or dates.
+- NEVER include any phone number or email address in the message, not the customer's and not the technician's; the app appends the technician's own contact details separately.
 - Do not use em dashes. Use commas or separate sentences.
 - Return JSON only, in the shape {"customerMessage": "..."}.`;
 

@@ -13,7 +13,7 @@ export default function DeleteAccountButton() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-sm font-medium text-danger hover:underline"
+        className="text-[15px] font-medium text-danger hover:underline"
       >
         Delete account
       </button>
@@ -22,13 +22,13 @@ export default function DeleteAccountButton() {
 
   return (
     <div className="rounded-xl border border-danger/30 bg-red-50 p-4">
-      <p className="text-sm font-semibold text-danger">Delete your account?</p>
-      <p className="mt-1 text-xs leading-relaxed text-danger/90">
+      <p className="text-[15px] font-semibold text-danger">Delete your account?</p>
+      <p className="mt-1 text-[13px] leading-relaxed text-danger/90">
         This permanently deletes your account, every note, your customer list,
         and all photos and files, and cancels any subscription. It can&apos;t be
         undone.
       </p>
-      <label className="mt-3 block text-xs font-medium text-danger/90">
+      <label className="mt-3 block text-[13px] font-medium text-danger/90">
         Type DELETE to confirm
       </label>
       <input
@@ -36,14 +36,14 @@ export default function DeleteAccountButton() {
         onChange={(e) => setConfirmText(e.target.value)}
         placeholder="DELETE"
         autoCapitalize="characters"
-        className="mt-1 w-full rounded-lg border border-danger/40 bg-white px-3 py-2 text-[15px] focus:outline-none focus:ring-2 focus:ring-danger/30"
+        className="mt-1 w-full rounded-lg border border-danger/40 bg-white px-3 py-2 text-[17px] focus:outline-none focus:ring-2 focus:ring-danger/30"
       />
       <div className="mt-3 flex gap-2">
         <form action={deleteAccount}>
           <button
             type="submit"
             disabled={!ready}
-            className="tt-pop rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90 disabled:opacity-50 transition"
+            className="tt-pop rounded-lg bg-danger px-4 py-2 text-[15px] font-medium text-white shadow-sm hover:opacity-90 disabled:opacity-50 transition"
           >
             Delete my account
           </button>
@@ -54,7 +54,7 @@ export default function DeleteAccountButton() {
             setOpen(false);
             setConfirmText("");
           }}
-          className="tt-pop rounded-lg bg-surface px-4 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50 transition"
+          className="tt-pop rounded-lg bg-surface px-4 py-2 text-[15px] font-medium text-foreground ring-1 ring-border hover:bg-slate-50 transition"
         >
           Cancel
         </button>

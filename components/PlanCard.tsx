@@ -45,23 +45,23 @@ export default function PlanCard({
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-      <div className="text-xs font-semibold uppercase tracking-wide text-muted">
+      <div className="text-[13px] font-semibold uppercase tracking-wide text-muted">
         Your plan
       </div>
       <div className="mt-1 flex items-baseline justify-between gap-3">
         <span className="text-lg font-bold text-foreground">
           {planName}
           {statusLabel && (
-            <span className="text-sm font-medium text-muted">{statusLabel}</span>
+            <span className="text-[15px] font-medium text-muted">{statusLabel}</span>
           )}
         </span>
       </div>
 
       {notesLimit === null ? (
-        <p className="mt-1 text-sm text-muted">Unlimited notes</p>
+        <p className="mt-1 text-[15px] text-muted">Unlimited notes</p>
       ) : (
         <div className="mt-3">
-          <div className="flex items-baseline justify-between text-sm">
+          <div className="flex items-baseline justify-between text-[15px]">
             <span className="text-muted">Notes this month</span>
             <span className="font-medium text-foreground">
               {notesUsed} of {notesLimit}
@@ -75,7 +75,7 @@ export default function PlanCard({
               style={{ width: `${pct}%` }}
             />
           </div>
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-1 text-[13px] text-muted">
             {atLimit
               ? "You've used all your notes this month. Resets on the 1st."
               : `${left} left this month. Resets on the 1st.`}
@@ -83,21 +83,21 @@ export default function PlanCard({
         </div>
       )}
 
-      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+      {error && <p className="mt-2 text-[13px] text-danger">{error}</p>}
 
       <div className="mt-4 flex flex-wrap gap-3">
         {hasBilling ? (
           <button
             onClick={openPortal}
             disabled={loading}
-            className="tt-pop rounded-lg bg-surface px-4 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50 disabled:opacity-60 transition"
+            className="tt-pop rounded-lg bg-surface px-4 py-2 text-[15px] font-medium text-foreground ring-1 ring-border hover:bg-slate-50 disabled:opacity-60 transition"
           >
             {loading ? "Opening…" : "Manage billing"}
           </button>
         ) : null}
         <Link
           href="/plans"
-          className="tt-pop rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-600 transition"
+          className="tt-pop rounded-lg bg-brand px-4 py-2 text-[15px] font-medium text-white shadow-sm hover:bg-brand-600 transition"
         >
           {hasBilling ? "Change plan" : "See plans & upgrade"}
         </Link>

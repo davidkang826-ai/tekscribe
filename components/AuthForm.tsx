@@ -30,19 +30,19 @@ export default function AuthForm({
           <h1 className="text-xl font-semibold text-foreground mb-1">
             {isSignup ? "Create your account" : "Welcome back"}
           </h1>
-          <p className="text-sm text-muted mb-5">
+          <p className="text-[15px] text-muted mb-5">
             {isSignup
               ? "Start turning voice notes into customer updates."
               : "Sign in to your TekScribe account."}
           </p>
 
           {notice && (
-            <div className="mb-4 rounded-lg bg-brand-50 text-brand text-sm px-3 py-2.5">
+            <div className="mb-4 rounded-lg bg-brand-50 text-brand text-[15px] px-3 py-2.5">
               {notice}
             </div>
           )}
           {state.error && (
-            <div className="mb-4 rounded-lg bg-red-50 text-danger text-sm px-3 py-2.5 ring-1 ring-red-100">
+            <div className="mb-4 rounded-lg bg-red-50 text-danger text-[15px] px-3 py-2.5 ring-1 ring-red-100">
               {state.error}
             </div>
           )}
@@ -75,7 +75,7 @@ export default function AuthForm({
               <div className="text-right -mt-1">
                 <Link
                   href="/forgot-password"
-                  className="text-xs font-medium text-brand hover:underline"
+                  className="text-[13px] font-medium text-brand hover:underline"
                 >
                   Forgot password?
                 </Link>
@@ -84,7 +84,7 @@ export default function AuthForm({
             <button
               type="submit"
               disabled={pending}
-              className="w-full rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
+              className="w-full rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-[15px] shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
             >
               {pending
                 ? "Please wait…"
@@ -95,7 +95,7 @@ export default function AuthForm({
           </form>
         </div>
 
-        <p className="text-center text-sm text-muted mt-5">
+        <p className="text-center text-[15px] text-muted mt-5">
           {isSignup ? (
             <>
               Already have an account?{" "}
@@ -132,7 +132,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-muted mb-1">{label}</label>
+      <label className="block text-[13px] font-medium text-muted mb-1">{label}</label>
       <input
         name={name}
         type={type}
@@ -140,7 +140,7 @@ function Field({
         required={required}
         autoCapitalize="off"
         autoCorrect="off"
-        className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+        className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
       />
     </div>
   );

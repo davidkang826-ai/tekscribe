@@ -13,7 +13,8 @@ Fields:
 - "partsAndMaterials": parts/materials USED on this job (sizes, quantities, fittings, refrigerant, breakers, etc.). These are billable and must not be lost. Empty array if none.
 - "nextSteps": everything still to do: follow-ups, return visits, recommendations, AND anything to BUY or order. Prefix a purchase with "Buy: " (e.g. "Buy: 3/4-inch shutoff valve"). Empty array if none.
 - "customerRequests": specific things the CUSTOMER asked for or wants (e.g. "wants a quote for a new water heater", "call before arriving", "prefers morning visits", "asked us to look at the upstairs sink next time"). Only include real requests stated in the note. Empty array if none.
-- "customerMessage": a short, warm, professional paragraph addressed to the HOMEOWNER. It MUST open with a greeting from the technician by name, like "Hi, it's {TECH_NAME}. Thanks again for letting me help you today." then summarize what was done and any next steps, in plain language (no jargon). Weave any customerRequests into flowing sentences so the customer knows they were heard, e.g. "As you asked during the visit, we'll schedule the next visit for Tuesday morning and bring extra drop cloths." Never use bullet points or lists in this message. Never mention parts or items the technician plans to buy, order, or pick up; purchases are internal notes, not customer information.
+- "customer": an object with the CLIENT's contact details IF the technician stated them in the note: { "name": "", "phone": "", "email": "", "address": "" }. Fill only fields explicitly mentioned (e.g. "I'm at the Johnsons, 45 Oak Street" gives name "Johnson" and address "45 Oak Street"). Leave any unmentioned field as an empty string. Never invent contact details.
+- "customerMessage": a short, warm, professional paragraph addressed to the HOMEOWNER. It MUST open with a greeting from the technician by name, like "Hi, it's {TECH_NAME}. Thanks again for letting me help you today." then summarize what was done and any next steps, in plain language (no jargon). Weave any customerRequests into flowing sentences so the customer knows they were heard, e.g. "As you asked during the visit, we'll schedule the next visit for Tuesday morning and bring extra drop cloths." Never use bullet points or lists in this message. Never mention parts or items the technician plans to buy, order, or pick up; purchases are internal notes, not customer information. NEVER include any phone number or email address in this message, not the customer's and not the technician's; the app appends the technician's own contact details separately.
 
 CRITICAL:
 - NEVER use em dashes (—) in any field. Use commas or separate sentences.
@@ -73,7 +74,19 @@ export async function POST(request: Request) {
       customerMessage: parsed.customerMessage?.trim() || "",
     };
 
-    return Response.json({ summary });
+    // Client contact the AI heard in the note, for prefilling step 2.
+    const c = (parsed as { customer?: Record<string, unknown> }).customer;
+    const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+    const customer = c
+      ? {
+          name: str(c.name),
+          phone: str(c.phone),
+          email: str(c.email),
+          address: str(c.address),
+        }
+      : { name: "", phone: "", email: "", address: "" };
+
+    return Response.json({ summary, customer });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Summarization failed.";
     console.error("[summarize]", message);

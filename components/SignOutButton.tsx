@@ -7,7 +7,7 @@ export default function SignOutButton() {
     <form action={signOut} className="contents">
       <button
         type="submit"
-        className="tt-pop cursor-pointer text-sm font-medium text-muted hover:text-foreground transition-colors leading-none"
+        className="tt-pop cursor-pointer text-[15px] font-medium text-muted hover:text-foreground transition-colors leading-none"
       >
         Sign out
       </button>

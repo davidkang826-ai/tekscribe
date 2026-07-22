@@ -12,12 +12,12 @@ export default function ResetPasswordForm() {
   return (
     <form action={formAction} className="space-y-3">
       {state.error && (
-        <div className="rounded-lg bg-red-50 text-danger text-sm px-3 py-2.5 ring-1 ring-red-100">
+        <div className="rounded-lg bg-red-50 text-danger text-[15px] px-3 py-2.5 ring-1 ring-red-100">
           {state.error}
         </div>
       )}
       <div>
-        <label className="block text-xs font-medium text-muted mb-1">
+        <label className="block text-[13px] font-medium text-muted mb-1">
           New password
         </label>
         <input
@@ -26,11 +26,11 @@ export default function ResetPasswordForm() {
           required
           autoComplete="new-password"
           placeholder="At least 8 characters"
-          className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+          className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-muted mb-1">
+        <label className="block text-[13px] font-medium text-muted mb-1">
           Confirm new password
         </label>
         <input
@@ -39,13 +39,13 @@ export default function ResetPasswordForm() {
           required
           autoComplete="new-password"
           placeholder="Type it again"
-          className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+          className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
       </div>
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
+        className="w-full rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-[15px] shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
       >
         {pending ? "Saving…" : "Set new password"}
       </button>

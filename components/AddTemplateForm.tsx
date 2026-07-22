@@ -194,17 +194,17 @@ export default function AddTemplateForm() {
       <input ref={overrideRef} type="hidden" name="override" defaultValue="" />
 
       {state.error && (
-        <div className="rounded-lg bg-red-50 text-danger text-sm px-3 py-2.5 ring-1 ring-red-100">
+        <div className="rounded-lg bg-red-50 text-danger text-[15px] px-3 py-2.5 ring-1 ring-red-100">
           {state.error}
         </div>
       )}
       {readError && (
-        <div className="rounded-lg bg-red-50 text-danger text-sm px-3 py-2.5 ring-1 ring-red-100">
+        <div className="rounded-lg bg-red-50 text-danger text-[15px] px-3 py-2.5 ring-1 ring-red-100">
           {readError}
         </div>
       )}
       {state.conflict && !dismissedConflict && (
-        <div className="rounded-lg bg-amber-50 text-amber-900 text-sm px-3 py-3 ring-1 ring-amber-200">
+        <div className="rounded-lg bg-amber-50 text-amber-900 text-[15px] px-3 py-3 ring-1 ring-amber-200">
           <p>
             A template named{" "}
             <span className="font-semibold">&ldquo;{state.conflict}&rdquo;</span>{" "}
@@ -214,14 +214,14 @@ export default function AddTemplateForm() {
             <button
               type="button"
               onClick={replaceExisting}
-              className="tt-pop rounded-md bg-brand px-3 py-1.5 text-white text-xs font-medium hover:bg-brand-600 transition-colors"
+              className="tt-pop rounded-md bg-brand px-3 py-1.5 text-white text-[13px] font-medium hover:bg-brand-600 transition-colors"
             >
               Replace it
             </button>
             <button
               type="button"
               onClick={() => setDismissedConflict(true)}
-              className="tt-pop rounded-md bg-surface px-3 py-1.5 text-foreground text-xs font-medium ring-1 ring-border hover:bg-white transition-colors"
+              className="tt-pop rounded-md bg-surface px-3 py-1.5 text-foreground text-[13px] font-medium ring-1 ring-border hover:bg-white transition-colors"
             >
               Cancel
             </button>
@@ -230,7 +230,7 @@ export default function AddTemplateForm() {
       )}
 
       <div>
-        <label className="block text-xs font-medium text-muted mb-1">
+        <label className="block text-[13px] font-medium text-muted mb-1">
           Template name
         </label>
         <input
@@ -240,7 +240,7 @@ export default function AddTemplateForm() {
           value={templateName}
           onChange={(e) => setTemplateName(e.target.value)}
           placeholder="Work order, Invoice, Inspection report…"
-          className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+          className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
       </div>
 
@@ -253,13 +253,13 @@ export default function AddTemplateForm() {
             value={withFormMarker(formHtml ?? "")}
           />
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-success font-medium">
+            <p className="text-[15px] text-success font-medium">
               ✓ Here&apos;s your form. TekScribe fills it in from what you say.
             </p>
             <button
               type="button"
               onClick={startOver}
-              className="tt-pop shrink-0 text-xs font-medium text-muted hover:text-foreground transition-colors"
+              className="tt-pop shrink-0 text-[13px] font-medium text-muted hover:text-foreground transition-colors"
             >
               Use a different file
             </button>
@@ -273,7 +273,7 @@ export default function AddTemplateForm() {
           </div>
 
           {original && (
-            <details className="text-sm">
+            <details className="text-[15px]">
               <summary className="cursor-pointer text-muted hover:text-foreground transition-colors">
                 Compare with what you uploaded
               </summary>
@@ -303,21 +303,21 @@ export default function AddTemplateForm() {
         <>
           <div className="rounded-xl border border-dashed border-brand/40 bg-brand-50/50 p-5 text-center">
             {reading ? (
-              <p className="text-sm font-medium text-brand py-2">
+              <p className="text-[15px] font-medium text-brand py-2">
                 📸 Reading your form…
               </p>
             ) : (
               <>
                 <div className="text-2xl mb-1">📸</div>
-                <p className="text-sm font-semibold text-foreground">
+                <p className="text-[15px] font-semibold text-foreground">
                   Start from a paper form
                 </p>
-                <p className="text-xs text-muted mt-0.5 mb-3">
+                <p className="text-[13px] text-muted mt-0.5 mb-3">
                   Snap a photo, or upload a PDF, Word, or Excel file. We rebuild
                   it as a clean form that fills itself in.
                 </p>
                 <div className="flex flex-wrap justify-center gap-2">
-                  <label className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-white text-sm font-medium cursor-pointer hover:bg-brand-600 transition shadow-sm">
+                  <label className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-white text-[15px] font-medium cursor-pointer hover:bg-brand-600 transition shadow-sm">
                     📷 Take a photo
                     <input
                       type="file"
@@ -327,7 +327,7 @@ export default function AddTemplateForm() {
                       className="hidden"
                     />
                   </label>
-                  <label className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3.5 py-2 text-foreground text-sm font-medium ring-1 ring-border cursor-pointer hover:bg-slate-50 transition">
+                  <label className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3.5 py-2 text-foreground text-[15px] font-medium ring-1 ring-border cursor-pointer hover:bg-slate-50 transition">
                     📎 Upload a file
                     <input
                       type="file"
@@ -337,7 +337,7 @@ export default function AddTemplateForm() {
                     />
                   </label>
                 </div>
-                <p className="text-[11px] text-muted mt-2">
+                <p className="text-[13px] text-muted mt-2">
                   PDF · PNG · JPEG · DOC/DOCX · XLS/XLSX
                 </p>
               </>
@@ -346,7 +346,7 @@ export default function AddTemplateForm() {
 
           <div className="flex items-center gap-3">
             <div className="h-px flex-1 bg-border" />
-            <span className="text-xs text-muted">or write it yourself</span>
+            <span className="text-[13px] text-muted">or write it yourself</span>
             <div className="h-px flex-1 bg-border" />
           </div>
 
@@ -360,9 +360,9 @@ export default function AddTemplateForm() {
               placeholder={
                 "Customer: [name]\nAddress: [address]\nWork performed: [work]\nParts used: [parts]\nRecommended follow-up: [next steps]"
               }
-              className="w-full rounded-lg border border-border bg-surface p-3 text-[15px] leading-relaxed font-mono focus:outline-none focus:ring-2 focus:ring-brand/30"
+              className="w-full rounded-lg border border-border bg-surface p-3 text-[17px] leading-relaxed font-mono focus:outline-none focus:ring-2 focus:ring-brand/30"
             />
-            <p className="mt-1.5 text-xs text-muted">
+            <p className="mt-1.5 text-[13px] text-muted">
               Mark blanks with things like{" "}
               <code className="text-foreground">[name]</code> or{" "}
               <code className="text-foreground">____</code>. TekScribe fills them
@@ -375,7 +375,7 @@ export default function AddTemplateForm() {
       <button
         type="submit"
         disabled={pending || reading}
-        className="w-full rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
+        className="w-full rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-[15px] shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
       >
         {pending ? "Saving…" : "Save template"}
       </button>

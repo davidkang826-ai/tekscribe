@@ -45,7 +45,7 @@ export default function PlanChooser({
             <button
               key={b}
               onClick={() => setBilling(b)}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+              className={`rounded-full px-4 py-1.5 text-[15px] font-medium transition ${
                 billing === b
                   ? "bg-surface text-foreground shadow-sm"
                   : "text-muted hover:text-foreground"
@@ -53,7 +53,7 @@ export default function PlanChooser({
             >
               {b === "monthly" ? "Monthly" : "Yearly"}
               {b === "yearly" && (
-                <span className="ml-1.5 text-xs font-semibold text-success">
+                <span className="ml-1.5 text-[13px] font-semibold text-success">
                   save ~17%
                 </span>
               )}
@@ -63,7 +63,7 @@ export default function PlanChooser({
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-danger ring-1 ring-red-100">
+        <div className="mb-4 rounded-lg bg-red-50 px-3 py-2.5 text-[15px] text-danger ring-1 ring-red-100">
           {error}
         </div>
       )}
@@ -85,23 +85,23 @@ export default function PlanChooser({
               }`}
             >
               {t.highlighted && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brand px-3 py-0.5 text-xs font-semibold text-white">
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brand px-3 py-0.5 text-[13px] font-semibold text-white">
                   Most popular
                 </span>
               )}
 
               <h3 className="text-lg font-bold text-foreground">{t.name}</h3>
-              <p className="text-xs text-muted">{t.tagline}</p>
+              <p className="text-[13px] text-muted">{t.tagline}</p>
 
               <div className="mt-3 flex items-baseline gap-1">
                 <span className="text-3xl font-bold text-foreground">
                   ${price}
                 </span>
                 {t.id !== "free" && (
-                  <span className="text-sm text-muted">/mo</span>
+                  <span className="text-[15px] text-muted">/mo</span>
                 )}
               </div>
-              <p className="h-4 text-[11px] text-muted">
+              <p className="h-4 text-[13px] text-muted">
                 {t.id !== "free" && billing === "yearly"
                   ? `$${t.priceYearly * 12} billed yearly`
                   : t.id !== "free"
@@ -113,7 +113,7 @@ export default function PlanChooser({
                 {t.features.map((f, i) => (
                   <li
                     key={i}
-                    className="flex gap-2 text-[13px] text-foreground"
+                    className="flex gap-2 text-[15px] text-foreground"
                   >
                     <span className="text-brand">✓</span>
                     <span>{f}</span>
@@ -124,13 +124,13 @@ export default function PlanChooser({
               <div className="mt-5">
                 {isCurrent ? (
                   <div className="rounded-lg bg-brand-50 p-2.5 text-center ring-1 ring-brand/20">
-                    <div className="text-sm font-semibold text-brand">
+                    <div className="text-[15px] font-semibold text-brand">
                       ✓ You&apos;re on the {t.name} plan
                     </div>
                     <form action={keepCurrentPlan}>
                       <button
                         type="submit"
-                        className="mt-1 text-xs font-medium text-brand hover:underline"
+                        className="mt-1 text-[13px] font-medium text-brand hover:underline"
                       >
                         Stick with my plan
                       </button>
@@ -140,20 +140,20 @@ export default function PlanChooser({
                   <form action={selectFreePlan}>
                     <button
                       type="submit"
-                      className="w-full rounded-lg bg-surface px-4 py-2.5 text-sm font-semibold text-foreground ring-1 ring-border hover:bg-slate-50 transition"
+                      className="w-full rounded-lg bg-surface px-4 py-2.5 text-[15px] font-semibold text-foreground ring-1 ring-border hover:bg-slate-50 transition"
                     >
                       Choose Free
                     </button>
                   </form>
                 ) : !stripeReady || !buyable ? (
-                  <div className="rounded-lg bg-slate-100 py-2.5 text-center text-sm font-medium text-muted">
+                  <div className="rounded-lg bg-slate-100 py-2.5 text-center text-[15px] font-medium text-muted">
                     Coming soon
                   </div>
                 ) : (
                   <button
                     onClick={() => checkout(t.id)}
                     disabled={loading !== null}
-                    className={`w-full rounded-lg px-4 py-2.5 text-sm font-semibold shadow-sm transition disabled:opacity-60 ${
+                    className={`w-full rounded-lg px-4 py-2.5 text-[15px] font-semibold shadow-sm transition disabled:opacity-60 ${
                       t.highlighted
                         ? "bg-brand text-white hover:bg-brand-600"
                         : "bg-foreground text-white hover:opacity-90"
@@ -168,7 +168,7 @@ export default function PlanChooser({
         })}
       </div>
 
-      <p className="mt-6 text-center text-xs text-muted">
+      <p className="mt-6 text-center text-[13px] text-muted">
         Change or cancel anytime. Prices in USD.
       </p>
     </div>

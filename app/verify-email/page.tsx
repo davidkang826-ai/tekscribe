@@ -13,12 +13,12 @@ export default function VerifyEmailPage() {
           <h1 className="text-xl font-semibold text-foreground mb-2">
             Check your email
           </h1>
-          <p className="text-sm text-muted leading-relaxed">
+          <p className="text-[15px] text-muted leading-relaxed">
             We sent you a verification link. Click it to confirm your account,
             then you&apos;ll add your phone number and you&apos;re ready to go.
           </p>
         </div>
-        <p className="text-center text-sm text-muted mt-5">
+        <p className="text-center text-[15px] text-muted mt-5">
           Already verified?{" "}
           <Link href="/login" className="text-brand font-medium">
             Sign in

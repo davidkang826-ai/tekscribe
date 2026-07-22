@@ -22,28 +22,43 @@ export default function VoiceToNote({
   async function process(blob: Blob) {
     setState("busy");
     try {
+      if (blob.size < 1200) {
+        setError("Didn't catch anything.");
+        return;
+      }
       const ext = blob.type.includes("mp4") ? "mp4" : "webm";
       const fd = new FormData();
       fd.append("audio", blob, `memo.${ext}`);
-      const tr = await fetch("/api/transcribe", { method: "POST", body: fd });
+      const tr = await fetch("/api/transcribe", {
+        method: "POST",
+        body: fd,
+        signal: AbortSignal.timeout(45000),
+      });
       const td = await tr.json();
       if (!tr.ok) throw new Error(td.error || "Could not transcribe.");
       const said = (td.text || "").trim();
-      if (!said) {
-        setError("Didn't catch that. Try again.");
-        setState("idle");
+      if (said.replace(/[^a-z0-9]/gi, "").length < 3) {
+        setError("Didn't catch anything.");
         return;
       }
       const sr = await fetch("/api/summarize-note", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transcript: said }),
+        signal: AbortSignal.timeout(45000),
       });
       const sd = await sr.json();
       onResult(sr.ok && sd.note ? sd.note : said);
-      setState("idle");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
+      const timedOut = e instanceof Error && e.name === "TimeoutError";
+      setError(
+        timedOut
+          ? "That took too long. Try again."
+          : e instanceof Error
+            ? e.message
+            : "Something went wrong."
+      );
+    } finally {
       setState("idle");
     }
   }
@@ -86,24 +101,19 @@ export default function VoiceToNote({
         type="button"
         onClick={state === "recording" ? stop : start}
         disabled={state === "busy"}
-        className={`tt-pop inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium ring-1 transition ${
+        className={`tt-pop inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[15px] font-medium ring-1 transition ${
           state === "recording"
-            ? "bg-danger text-white ring-danger"
+            ? "bg-danger text-white ring-danger tt-pulse"
             : "bg-surface text-brand ring-border hover:bg-brand-50 disabled:opacity-60"
         }`}
       >
-        {state === "recording" ? (
-          <>
-            <span className="inline-block h-2 w-2 rounded-full bg-white tt-pulse" />
-            Stop &amp; add
-          </>
-        ) : state === "busy" ? (
-          "Writing it up…"
-        ) : (
-          "🎙 Say it instead"
-        )}
+        {state === "recording"
+          ? "Stop & add"
+          : state === "busy"
+            ? "Writing it up…"
+            : "🎙 Say it instead"}
       </button>
-      {error && <span className="text-xs text-danger">{error}</span>}
+      {error && <span className="text-[13px] text-danger">{error}</span>}
     </div>
   );
 }

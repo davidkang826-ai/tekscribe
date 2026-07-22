@@ -211,7 +211,7 @@ export default function SendToCustomer({
 
   return (
     <div className="mt-5 border-t border-border pt-5">
-      <div className="text-xs font-semibold uppercase tracking-wide text-brand mb-3">
+      <div className="text-[13px] font-semibold uppercase tracking-wide text-brand mb-3">
         Send to customer
       </div>
 
@@ -224,7 +224,7 @@ export default function SendToCustomer({
               setSent(false);
               setSendError(null);
             }}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${
+            className={`px-4 py-1.5 rounded-md text-[15px] font-medium transition ${
               channel === c
                 ? "bg-surface text-foreground shadow-sm"
                 : "text-muted hover:text-foreground"
@@ -239,7 +239,7 @@ export default function SendToCustomer({
         {isEmail ? (
           <>
             <div>
-              <label className="block text-xs text-muted mb-1">
+              <label className="block text-[13px] text-muted mb-1">
                 Customer email
               </label>
               <input
@@ -254,16 +254,16 @@ export default function SendToCustomer({
                   setSendError(null);
                 }}
                 placeholder="customer@example.com"
-                className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
               />
             </div>
             <div>
-              <label className="block text-xs text-muted mb-1">Subject</label>
+              <label className="block text-[13px] text-muted mb-1">Subject</label>
               <input
                 type="text"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
-                className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
               />
             </div>
 
@@ -271,7 +271,7 @@ export default function SendToCustomer({
             <div className="rounded-lg bg-slate-50 px-3 py-2.5">
               {editingReplyTo ? (
                 <div>
-                  <label className="block text-xs text-muted mb-1">
+                  <label className="block text-[13px] text-muted mb-1">
                     Replies should go to
                   </label>
                   <input
@@ -282,17 +282,17 @@ export default function SendToCustomer({
                     value={replyTo}
                     onChange={(e) => setReplyTo(e.target.value)}
                     placeholder="you@example.com"
-                    className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                    className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
                   />
                   <button
                     onClick={() => setEditingReplyTo(false)}
-                    className="mt-2 text-xs font-medium text-brand hover:underline"
+                    className="mt-2 text-[13px] font-medium text-brand hover:underline"
                   >
                     Done
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center justify-between gap-2 text-xs">
+                <div className="flex items-center justify-between gap-2 text-[13px]">
                   <span className="text-muted">
                     Replies go to{" "}
                     <span className="font-medium text-foreground">
@@ -311,7 +311,7 @@ export default function SendToCustomer({
           </>
         ) : (
           <div>
-            <label className="block text-xs text-muted mb-1">
+            <label className="block text-[13px] text-muted mb-1">
               Customer mobile number
             </label>
             <input
@@ -320,13 +320,13 @@ export default function SendToCustomer({
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="(617) 555-0123"
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
             />
           </div>
         )}
 
         <details className="rounded-lg bg-slate-50 px-3 py-2.5" open>
-          <summary className="text-xs text-muted cursor-pointer select-none">
+          <summary className="text-[13px] text-muted cursor-pointer select-none">
             Preview message
           </summary>
           <div className="mt-2 flex justify-end">
@@ -334,7 +334,7 @@ export default function SendToCustomer({
               type="button"
               onClick={() => (editingMsg ? finishEditing() : setEditingMsg(true))}
               disabled={proofing}
-              className="text-xs font-medium text-brand hover:underline disabled:opacity-60"
+              className="text-[13px] font-medium text-brand hover:underline disabled:opacity-60"
             >
               {proofing ? "Polishing…" : editingMsg ? "✓ Done" : "✏️ Edit message"}
             </button>
@@ -349,22 +349,22 @@ export default function SendToCustomer({
                     : setSmsOverride(e.target.value)
                 }
                 rows={12}
-                className="mt-1 w-full rounded-lg border border-border bg-surface p-3 text-[14px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/30"
+                className="mt-1 w-full rounded-lg border border-border bg-surface p-3 text-[16px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/30"
               />
-              <p className="mt-1 text-xs text-muted">
+              <p className="mt-1 text-[13px] text-muted">
                 This is exactly what will be sent. Typos and details that
                 contradict the note get quietly fixed when you tap Done.
               </p>
             </>
           ) : (
-            <pre className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-foreground font-sans">
+            <pre className="mt-2 whitespace-pre-wrap text-[16px] leading-relaxed text-foreground font-sans">
               {isEmail ? emailBody : smsBody}
             </pre>
           )}
         </details>
 
         {sendError && (
-          <div className="rounded-lg bg-red-50 text-danger text-sm px-3 py-2.5 ring-1 ring-red-100">
+          <div className="rounded-lg bg-red-50 text-danger text-[15px] px-3 py-2.5 ring-1 ring-red-100">
             {sendError}
           </div>
         )}
@@ -374,7 +374,7 @@ export default function SendToCustomer({
             <button
               onClick={sendEmail}
               disabled={!validEmail || sending || sent}
-              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 font-medium text-sm shadow-sm transition ${
+              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 font-medium text-[15px] shadow-sm transition ${
                 sent
                   ? "bg-success text-white"
                   : validEmail && !sending
@@ -396,7 +396,7 @@ export default function SendToCustomer({
                 if (!validPhone) e.preventDefault();
                 else recordSample(smsBody);
               }}
-              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 font-medium text-sm shadow-sm transition ${
+              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 font-medium text-[15px] shadow-sm transition ${
                 validPhone
                   ? "bg-brand text-white hover:bg-brand-600"
                   : "bg-slate-200 text-slate-400 cursor-not-allowed"
@@ -407,14 +407,14 @@ export default function SendToCustomer({
           )}
           <button
             onClick={copyAll}
-            className="inline-flex items-center gap-2 rounded-lg bg-surface px-4 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 transition"
+            className="inline-flex items-center gap-2 rounded-lg bg-surface px-4 py-2.5 text-foreground font-medium text-[15px] ring-1 ring-border hover:bg-slate-50 transition"
           >
             {copied ? "✓ Copied" : "Copy text"}
           </button>
         </div>
 
         {isEmail && !validEmail && (
-          <p className="text-xs text-accent-600">Enter an email to send.</p>
+          <p className="text-[13px] text-accent-600">Enter an email to send.</p>
         )}
       </div>
     </div>

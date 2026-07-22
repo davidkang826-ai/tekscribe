@@ -9,7 +9,7 @@ import {
 } from "@/lib/supabase/actions";
 
 const inputClass =
-  "w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30";
+  "w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30";
 
 export default function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
@@ -30,18 +30,18 @@ export default function ForgotPasswordForm() {
     return (
       <form action={resetAction} className="space-y-3">
         {resetState.error && (
-          <div className="rounded-lg bg-red-50 text-danger text-sm px-3 py-2.5 ring-1 ring-red-100">
+          <div className="rounded-lg bg-red-50 text-danger text-[15px] px-3 py-2.5 ring-1 ring-red-100">
             {resetState.error}
           </div>
         )}
-        <p className="text-sm text-muted">
+        <p className="text-[15px] text-muted">
           We sent a code to{" "}
           <span className="font-medium text-foreground">{email}</span>. Enter it
           below with your new password. (Check spam if you don&apos;t see it.)
         </p>
         <input type="hidden" name="email" value={email} />
         <div>
-          <label className="block text-xs font-medium text-muted mb-1">
+          <label className="block text-[13px] font-medium text-muted mb-1">
             Code from your email
           </label>
           <input
@@ -56,7 +56,7 @@ export default function ForgotPasswordForm() {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted mb-1">
+          <label className="block text-[13px] font-medium text-muted mb-1">
             New password
           </label>
           <input
@@ -69,7 +69,7 @@ export default function ForgotPasswordForm() {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted mb-1">
+          <label className="block text-[13px] font-medium text-muted mb-1">
             Confirm new password
           </label>
           <input
@@ -84,11 +84,11 @@ export default function ForgotPasswordForm() {
         <button
           type="submit"
           disabled={resetPending}
-          className="w-full rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
+          className="w-full rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-[15px] shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
         >
           {resetPending ? "Saving…" : "Reset password"}
         </button>
-        <p className="text-center text-sm text-muted">
+        <p className="text-center text-[15px] text-muted">
           Didn&apos;t get a code?{" "}
           <Link href="/forgot-password" className="text-brand font-medium">
             Start over
@@ -102,12 +102,12 @@ export default function ForgotPasswordForm() {
   return (
     <form action={reqAction} className="space-y-3">
       {reqState.error && (
-        <div className="rounded-lg bg-red-50 text-danger text-sm px-3 py-2.5 ring-1 ring-red-100">
+        <div className="rounded-lg bg-red-50 text-danger text-[15px] px-3 py-2.5 ring-1 ring-red-100">
           {reqState.error}
         </div>
       )}
       <div>
-        <label className="block text-xs font-medium text-muted mb-1">Email</label>
+        <label className="block text-[13px] font-medium text-muted mb-1">Email</label>
         <input
           name="email"
           type="email"
@@ -123,11 +123,11 @@ export default function ForgotPasswordForm() {
       <button
         type="submit"
         disabled={reqPending}
-        className="w-full rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
+        className="w-full rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-[15px] shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
       >
         {reqPending ? "Sending…" : "Send code"}
       </button>
-      <p className="text-center text-sm text-muted">
+      <p className="text-center text-[15px] text-muted">
         <Link href="/login" className="text-brand font-medium">
           Back to sign in
         </Link>

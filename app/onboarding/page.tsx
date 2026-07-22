@@ -32,7 +32,7 @@ export default async function OnboardingPage() {
           <h1 className="text-xl font-semibold text-foreground mb-1">
             One last step
           </h1>
-          <p className="text-sm text-muted mb-5">
+          <p className="text-[15px] text-muted mb-5">
             A couple details so you can text and email customers right from a
             job.
           </p>

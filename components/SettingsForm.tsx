@@ -23,18 +23,18 @@ export default function SettingsForm({
       className="rounded-2xl border border-border bg-surface p-5 shadow-sm space-y-4"
     >
       {state.error && (
-        <div className="rounded-lg bg-red-50 text-danger text-sm px-3 py-2.5 ring-1 ring-red-100">
+        <div className="rounded-lg bg-red-50 text-danger text-[15px] px-3 py-2.5 ring-1 ring-red-100">
           {state.error}
         </div>
       )}
       {state.ok && (
-        <div className="rounded-lg bg-green-50 text-success text-sm px-3 py-2.5 ring-1 ring-green-100">
+        <div className="rounded-lg bg-green-50 text-success text-[15px] px-3 py-2.5 ring-1 ring-green-100">
           ✓ Saved
         </div>
       )}
 
       <div>
-        <label className="block text-xs font-medium text-muted mb-1">
+        <label className="block text-[13px] font-medium text-muted mb-1">
           Your name
         </label>
         <input
@@ -42,15 +42,15 @@ export default function SettingsForm({
           type="text"
           defaultValue={displayName}
           placeholder="What customers call you, e.g. Johnny"
-          className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+          className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
-        <p className="mt-1 text-xs text-muted">
+        <p className="mt-1 text-[13px] text-muted">
           Customer messages open with this, like &ldquo;Hi, it&apos;s Johnny.&rdquo;
         </p>
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-muted mb-1">
+        <label className="block text-[13px] font-medium text-muted mb-1">
           Business name
         </label>
         <input
@@ -58,12 +58,12 @@ export default function SettingsForm({
           type="text"
           defaultValue={businessName}
           placeholder="Blue Ridge Plumbing"
-          className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+          className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-muted mb-1">
+        <label className="block text-[13px] font-medium text-muted mb-1">
           Customer replies go to
         </label>
         <input
@@ -74,9 +74,9 @@ export default function SettingsForm({
           autoCorrect="off"
           defaultValue={replyTo}
           placeholder="you@example.com"
-          className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+          className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
-        <p className="mt-1 text-xs text-muted">
+        <p className="mt-1 text-[13px] text-muted">
           When a customer replies to an email you sent, it comes back here.
         </p>
       </div>
@@ -84,7 +84,7 @@ export default function SettingsForm({
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
+        className="w-full rounded-lg bg-brand px-4 py-2.5 text-white font-medium text-[15px] shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
       >
         {pending ? "Saving…" : "Save changes"}
       </button>

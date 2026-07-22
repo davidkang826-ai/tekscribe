@@ -12,6 +12,7 @@ import {
 } from "@/lib/supabase/visits";
 import { TIME_OPTIONS, dateInputValue, combineDateTime } from "@/lib/times";
 import VoiceToNote from "./VoiceToNote";
+import AddressInput from "./AddressInput";
 import { contactsAvailable, pickContact } from "@/lib/contacts";
 
 type Visit = {
@@ -284,7 +285,7 @@ export default function CalendarView() {
 
       {/* Grid */}
       <div className="mt-3 rounded-2xl border border-border bg-surface p-3 shadow-sm">
-        <div className="grid grid-cols-7 text-center text-[11px] font-semibold text-muted">
+        <div className="grid grid-cols-7 text-center text-[13px] font-semibold text-muted">
           {WEEKDAYS.map((d, i) => (
             <div key={i} className="py-1">
               {d}
@@ -302,7 +303,7 @@ export default function CalendarView() {
                 key={d.toISOString()}
                 type="button"
                 onClick={() => setSelected(new Date(d))}
-                className={`relative mx-auto my-0.5 flex h-11 w-11 flex-col items-center justify-center rounded-full text-[15px] transition ${
+                className={`relative mx-auto my-0.5 flex h-11 w-11 flex-col items-center justify-center rounded-full text-[17px] transition ${
                   isSelected
                     ? "bg-brand text-white font-semibold"
                     : isToday
@@ -328,7 +329,7 @@ export default function CalendarView() {
 
       {/* Selected day */}
       <div className="mt-5 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-foreground">
+        <h2 className="text-[15px] font-semibold text-foreground">
           {selected.toLocaleDateString(undefined, {
             weekday: "long",
             month: "long",
@@ -338,14 +339,14 @@ export default function CalendarView() {
         <button
           type="button"
           onClick={openCreate}
-          className="tt-pop rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-600 transition"
+          className="tt-pop rounded-lg bg-brand px-3.5 py-2 text-[15px] font-semibold text-white shadow-sm hover:bg-brand-600 transition"
         >
           ＋ Add
         </button>
       </div>
 
       {error && (
-        <div className="mt-3 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-danger ring-1 ring-red-100">
+        <div className="mt-3 rounded-lg bg-red-50 px-3 py-2.5 text-[15px] text-danger ring-1 ring-red-100">
           {error}
         </div>
       )}
@@ -355,7 +356,7 @@ export default function CalendarView() {
           <LogoMark size={40} className="tt-logo-load" />
         </div>
       ) : dayVisits.length === 0 && !form ? (
-        <div className="mt-3 rounded-2xl border border-dashed border-border bg-surface p-8 text-center text-sm text-muted">
+        <div className="mt-3 rounded-2xl border border-dashed border-border bg-surface p-8 text-center text-[15px] text-muted">
           Nothing scheduled.
         </div>
       ) : (
@@ -375,7 +376,7 @@ export default function CalendarView() {
                       {v.customer_name || "No customer"}
                     </h3>
                     <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[12px] font-semibold uppercase tracking-wide ${
                         isCall
                           ? "bg-brand-50 text-brand"
                           : "bg-green-100 text-success"
@@ -384,7 +385,7 @@ export default function CalendarView() {
                       {isCall ? "Call" : "Visit"}
                     </span>
                   </div>
-                  <time className="shrink-0 text-sm font-semibold text-brand whitespace-nowrap">
+                  <time className="shrink-0 text-[15px] font-semibold text-brand whitespace-nowrap">
                     {new Date(v.scheduled_at).toLocaleTimeString(undefined, {
                       hour: "numeric",
                       minute: "2-digit",
@@ -396,7 +397,7 @@ export default function CalendarView() {
                 {isCall && contact?.phone && (
                   <a
                     href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}
-                    className="mt-1.5 block text-sm font-medium text-brand hover:underline"
+                    className="mt-1.5 block text-[15px] font-medium text-brand hover:underline"
                   >
                     📞 {contact.phone}
                   </a>
@@ -406,17 +407,17 @@ export default function CalendarView() {
                     href={mapHref(address)}
                     target="_blank"
                     rel="noreferrer"
-                    className="mt-1.5 block text-sm font-medium text-brand hover:underline"
+                    className="mt-1.5 block text-[15px] font-medium text-brand hover:underline"
                   >
                     📍 {address}
                   </a>
                 )}
 
                 {v.todo && (
-                  <p className="mt-1.5 text-sm text-foreground">{v.todo}</p>
+                  <p className="mt-1.5 text-[15px] text-foreground">{v.todo}</p>
                 )}
 
-                <div className="mt-2 flex gap-4 text-xs font-medium">
+                <div className="mt-2 flex gap-4 text-[13px] font-medium">
                   {v.note_id && (
                     <Link
                       href={`/notes/${v.note_id}`}
@@ -444,7 +445,7 @@ export default function CalendarView() {
 
                 {confirmDelete === v.id && (
                   <div className="tt-fade-in mt-3 flex items-center gap-3 rounded-xl bg-red-50 p-3 ring-1 ring-red-100">
-                    <p className="flex-1 text-sm font-medium text-foreground">
+                    <p className="flex-1 text-[15px] font-medium text-foreground">
                       Delete this event?
                     </p>
                     <button
@@ -453,14 +454,14 @@ export default function CalendarView() {
                         setConfirmDelete(null);
                         remove(v.id);
                       }}
-                      className="rounded-lg bg-danger px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition"
+                      className="rounded-lg bg-danger px-3.5 py-1.5 text-[13px] font-semibold text-white hover:opacity-90 transition"
                     >
                       Delete
                     </button>
                     <button
                       type="button"
                       onClick={() => setConfirmDelete(null)}
-                      className="text-xs font-medium text-muted hover:text-foreground transition"
+                      className="text-[13px] font-medium text-muted hover:text-foreground transition"
                     >
                       Cancel
                     </button>
@@ -477,12 +478,12 @@ export default function CalendarView() {
         <button
           type="button"
           onClick={() => (syncOpen ? setSyncOpen(false) : openSync())}
-          className="text-xs font-medium text-muted hover:text-foreground transition"
+          className="text-[13px] font-medium text-muted hover:text-foreground transition"
         >
           🔄 Sync to phone calendar
         </button>
         {syncOpen && (
-          <div className="tt-fade-in mt-2 rounded-2xl border border-border bg-surface p-4 text-left text-sm shadow-sm">
+          <div className="tt-fade-in mt-2 rounded-2xl border border-border bg-surface p-4 text-left text-[15px] shadow-sm">
             {syncBusy || !feedUrl ? (
               <p className="text-muted">Preparing your link…</p>
             ) : (
@@ -514,7 +515,7 @@ export default function CalendarView() {
                       // ignore
                     }
                   }}
-                  className="text-xs font-medium text-muted hover:text-foreground"
+                  className="text-[13px] font-medium text-muted hover:text-foreground"
                 >
                   {copied ? "✓ Link copied" : "Copy link"}
                 </button>
@@ -527,21 +528,21 @@ export default function CalendarView() {
       {/* Create / edit */}
       {form && (
         <div className="mt-4 rounded-2xl border border-brand/30 bg-surface p-4 shadow-sm">
-          <h3 className="text-sm font-semibold text-foreground">
+          <h3 className="text-[15px] font-semibold text-foreground">
             {form.id ? "Edit event" : "New event"}
           </h3>
 
           <div className="mt-3 space-y-3">
             <div>
               <div className="mb-1 flex items-center justify-between gap-2">
-                <label className="block text-xs font-semibold uppercase tracking-wide text-muted">
+                <label className="block text-[13px] font-semibold uppercase tracking-wide text-muted">
                   Customer
                 </label>
                 {canUseContacts && (
                   <button
                     type="button"
                     onClick={fillFormFromContacts}
-                    className="tt-pop rounded-full bg-surface px-3 py-1 text-xs font-medium text-brand ring-1 ring-border hover:bg-brand-50 transition"
+                    className="tt-pop rounded-full bg-surface px-3 py-1 text-[13px] font-medium text-brand ring-1 ring-border hover:bg-brand-50 transition"
                   >
                     📇 From Contacts
                   </button>
@@ -553,7 +554,7 @@ export default function CalendarView() {
                 value={form.customer}
                 onChange={(e) => setForm({ ...form, customer: e.target.value })}
                 placeholder="Customer name"
-                className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
               />
               <datalist id="tt-cal-customers">
                 {contacts.map((c) => (
@@ -573,7 +574,7 @@ export default function CalendarView() {
                   key={k}
                   type="button"
                   onClick={() => setForm({ ...form, kind: k })}
-                  className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
+                  className={`rounded-full px-3.5 py-1.5 text-[15px] font-medium transition ${
                     form.kind === k
                       ? "bg-surface text-foreground shadow-sm"
                       : "text-muted hover:text-foreground"
@@ -586,23 +587,20 @@ export default function CalendarView() {
 
             {form.kind === "visit" && (
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+                <label className="block text-[13px] font-semibold uppercase tracking-wide text-muted mb-1">
                   Address
                 </label>
-                <input
-                  type="text"
+                <AddressInput
                   value={form.address}
-                  onChange={(e) =>
-                    setForm({ ...form, address: e.target.value })
-                  }
+                  onChange={(v) => setForm({ ...form, address: v })}
                   placeholder="123 Main St, Seattle, WA"
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                  className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
                 />
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+              <label className="block text-[13px] font-semibold uppercase tracking-wide text-muted mb-1">
                 Notes
               </label>
               <textarea
@@ -610,7 +608,7 @@ export default function CalendarView() {
                 onChange={(e) => setForm({ ...form, todo: e.target.value })}
                 rows={2}
                 placeholder="What this visit or call is for"
-                className="w-full rounded-lg border border-border bg-surface p-3 text-[15px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/30"
+                className="w-full rounded-lg border border-border bg-surface p-3 text-[17px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/30"
               />
               {/* Talk it through instead of typing; the AI tightens it up and
                   appends it to whatever's already in the notes. */}
@@ -629,24 +627,24 @@ export default function CalendarView() {
 
             {/* Date and time on their own rows so neither gets cramped. */}
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+              <label className="block text-[13px] font-semibold uppercase tracking-wide text-muted mb-1">
                 Date
               </label>
               <input
                 type="date"
                 value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
-                className="block w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                className="block w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+              <label className="block text-[13px] font-semibold uppercase tracking-wide text-muted mb-1">
                 Time
               </label>
               <select
                 value={form.time}
                 onChange={(e) => setForm({ ...form, time: e.target.value })}
-                className="block w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                className="block w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
               >
                 {TIME_OPTIONS.map((t) => (
                   <option key={t.value} value={t.value}>
@@ -661,14 +659,14 @@ export default function CalendarView() {
                 type="button"
                 onClick={saveForm}
                 disabled={saving}
-                className="flex-1 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
+                className="flex-1 rounded-lg bg-brand px-4 py-2.5 text-[15px] font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
               >
                 {saving ? "Saving…" : form.id ? "Save changes" : "Add to calendar"}
               </button>
               <button
                 type="button"
                 onClick={() => setForm(null)}
-                className="rounded-lg px-4 py-2.5 text-sm font-medium text-muted ring-1 ring-border hover:text-foreground transition"
+                className="rounded-lg px-4 py-2.5 text-[15px] font-medium text-muted ring-1 ring-border hover:text-foreground transition"
               >
                 Cancel
               </button>

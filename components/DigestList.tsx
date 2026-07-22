@@ -162,7 +162,7 @@ export default function DigestList() {
           Nothing on the books today.
         </p>
         {needsMigration && (
-          <p className="mt-3 text-xs text-muted">
+          <p className="mt-3 text-[13px] text-muted">
             (Just updated? Run the latest supabase/schema.sql to enable the
             digest.)
           </p>
@@ -186,7 +186,7 @@ export default function DigestList() {
                   {v.customer_name || "No customer"}
                 </h3>
                 <span
-                  className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-[12px] font-semibold uppercase tracking-wide ${
                     isCall
                       ? "bg-brand-50 text-brand"
                       : "bg-green-100 text-success"
@@ -195,7 +195,7 @@ export default function DigestList() {
                   {isCall ? "Call" : "Visit"}
                 </span>
               </div>
-              <time className="shrink-0 text-sm font-semibold text-brand whitespace-nowrap">
+              <time className="shrink-0 text-[15px] font-semibold text-brand whitespace-nowrap">
                 {new Date(v.scheduled_at).toLocaleTimeString(undefined, {
                   hour: "numeric",
                   minute: "2-digit",
@@ -207,7 +207,7 @@ export default function DigestList() {
             {isCall && v.phone && (
               <a
                 href={`tel:${v.phone.replace(/[^\d+]/g, "")}`}
-                className="mt-1.5 inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
+                className="mt-1.5 inline-flex items-center gap-1.5 text-[15px] font-medium text-brand hover:underline"
               >
                 📞 {v.phone}
               </a>
@@ -217,20 +217,20 @@ export default function DigestList() {
                 href={mapHref(v.addr)}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-1.5 inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
+                className="mt-1.5 inline-flex items-center gap-1.5 text-[15px] font-medium text-brand hover:underline"
               >
                 📍 {v.addr}
               </a>
             )}
 
             {v.lastVisit && (
-              <p className="mt-2 text-sm text-muted">
+              <p className="mt-2 text-[15px] text-muted">
                 <span className="font-medium text-foreground">Last time:</span>{" "}
                 {v.lastVisit}
               </p>
             )}
             {v.todoLine && (
-              <p className="mt-1 text-sm text-foreground">
+              <p className="mt-1 text-[15px] text-foreground">
                 <span className="font-medium">This time:</span> {v.todoLine}
               </p>
             )}
@@ -238,7 +238,7 @@ export default function DigestList() {
             {v.note_id && (
               <Link
                 href={`/notes/${v.note_id}`}
-                className="mt-2 inline-block text-xs font-medium text-brand hover:underline"
+                className="mt-2 inline-block text-[13px] font-medium text-brand hover:underline"
               >
                 Previous visit note
               </Link>
