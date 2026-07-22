@@ -25,13 +25,13 @@ export const PLANS: PlanTier[] = [
     priceMonthly: 0,
     priceYearly: 0,
     features: [
-      "10 notes a month",
+      "5 notes a month",
       "Record, transcribe, and AI write-up",
       "Send to customers by email or text",
       "Photos and files on each visit",
       "30 days of history",
     ],
-    notesPerMonth: 10,
+    notesPerMonth: 5,
     stripe: {},
   },
   {

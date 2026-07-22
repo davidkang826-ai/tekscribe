@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
-import DigestList from "@/components/DigestList";
+import DigestList, { DigestDate } from "@/components/DigestList";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
@@ -22,8 +22,9 @@ export default async function DigestPage() {
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Daily Digest
         </h1>
-
         {/* Client-side so "today" means the tech's timezone, not the server's. */}
+        <DigestDate />
+
         <DigestList />
       </main>
 

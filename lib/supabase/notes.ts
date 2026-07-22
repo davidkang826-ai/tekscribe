@@ -5,9 +5,37 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { syncNoteToDrive } from "@/lib/drive-sync";
+import { planById } from "@/lib/plans";
 import type { JobSummary, Attachment } from "@/lib/types";
 
-export type SaveResult = { error?: string; id?: string };
+export type SaveResult = { error?: string; id?: string; limitReached?: boolean };
+
+/** First moment of the current calendar month, for the monthly note cap. */
+function startOfMonthIso(): string {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+}
+
+/**
+ * True only when a write failed because the newer contact columns aren't in
+ * the table yet (migration not run), so retrying without them is safe. Any
+ * other error means something real went wrong, and we must NOT silently retry
+ * a second insert, since that could duplicate the note.
+ */
+function isMissingContactColumn(
+  error: { code?: string; message?: string } | null
+): boolean {
+  if (!error) return false;
+  // 42703 = undefined_column (Postgres); PGRST204 = column missing from the
+  // PostgREST schema cache.
+  if (error.code === "42703" || error.code === "PGRST204") return true;
+  const msg = (error.message ?? "").toLowerCase();
+  return (
+    msg.includes("customer_phone") ||
+    msg.includes("customer_address") ||
+    (msg.includes("column") && msg.includes("does not exist"))
+  );
+}
 
 export async function saveNote(input: {
   transcript: string;
@@ -25,6 +53,29 @@ export async function saveNote(input: {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "You need to be signed in to save." };
+
+  // Enforce the plan's monthly note cap (Free = 5). Only new notes count;
+  // updateNote edits an existing one in place and never hits this path. If the
+  // plan lookup fails (e.g. migration not run), the user is treated as Free.
+  const { data: planRow } = await supabase
+    .from("profiles")
+    .select("plan")
+    .eq("id", user.id)
+    .maybeSingle();
+  const planId = (planRow?.plan as string | undefined) || "free";
+  const monthlyLimit = planById(planId)?.notesPerMonth ?? null;
+  if (monthlyLimit !== null) {
+    const { count } = await supabase
+      .from("voice_notes")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", startOfMonthIso());
+    if ((count ?? 0) >= monthlyLimit) {
+      return {
+        limitReached: true,
+        error: `You've saved all ${monthlyLimit} of your free notes this month. Upgrade to Pro for unlimited notes.`,
+      };
+    }
+  }
 
   const base = {
     user_id: user.id,
@@ -49,7 +100,8 @@ export async function saveNote(input: {
     .single();
   if (!first.error) {
     data = first.data;
-  } else {
+  } else if (isMissingContactColumn(first.error)) {
+    // The contact columns aren't there yet; retry without them.
     const retry = await supabase
       .from("voice_notes")
       .insert(base)
@@ -57,6 +109,10 @@ export async function saveNote(input: {
       .single();
     if (retry.error) return { error: retry.error.message };
     data = retry.data;
+  } else {
+    // A real failure (permissions, connectivity, a half-applied write). Don't
+    // fire a second insert, that risks a duplicate note. Surface it instead.
+    return { error: first.error.message };
   }
   if (!data) return { error: "Couldn't save the note." };
 
@@ -110,12 +166,16 @@ export async function updateNote(
     .eq("id", id)
     .eq("user_id", user.id);
   if (upd.error) {
-    const retry = await supabase
-      .from("voice_notes")
-      .update(base)
-      .eq("id", id)
-      .eq("user_id", user.id);
-    if (retry.error) return { error: retry.error.message };
+    if (isMissingContactColumn(upd.error)) {
+      const retry = await supabase
+        .from("voice_notes")
+        .update(base)
+        .eq("id", id)
+        .eq("user_id", user.id);
+      if (retry.error) return { error: retry.error.message };
+    } else {
+      return { error: upd.error.message };
+    }
   }
 
   // Any newly added photos/files also mirror to Drive (existing ones skip),

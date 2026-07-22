@@ -46,6 +46,24 @@ function oneLine(items: string[] | undefined, max = 2): string {
     .join("; ");
 }
 
+/** Today's date, in the tech's own timezone. Computed after mount so it never
+ *  disagrees with the server's clock during hydration. */
+export function DigestDate() {
+  const [label, setLabel] = useState("");
+  useEffect(() => {
+    setLabel(
+      new Date().toLocaleDateString(undefined, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      })
+    );
+  }, []);
+  return label ? (
+    <p className="mt-1 text-[15px] text-muted">{label}</p>
+  ) : null;
+}
+
 export default function DigestList() {
   const [rows, setRows] = useState<Enriched[] | null>(null);
   const [needsMigration, setNeedsMigration] = useState(false);
@@ -105,41 +123,41 @@ export default function DigestList() {
         });
       }
 
-      const enriched = await Promise.all(
-        (visits ?? []).map(async (v: Visit): Promise<Enriched> => {
-          const contact = v.customer_name
-            ? contacts.get(v.customer_name.trim().toLowerCase())
-            : undefined;
-          let lastVisit: string | undefined;
-          let bring: string[] = [];
-          if (v.customer_name) {
-            const { data: note } = await supabase
-              .from("voice_notes")
-              .select("summary")
-              .eq("customer_name", v.customer_name)
-              .order("created_at", { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            const s = (note?.summary ?? null) as JobSummary | null;
-            lastVisit = oneLine(s?.workDone, 2) || undefined;
-            bring =
-              s?.nextSteps
-                ?.filter((x) => /^buy\s*:/i.test(x.trim()))
-                .map((x) => x.replace(/^buy\s*:\s*/i, "")) ?? [];
-          }
-          // Combine "what to do" and "what to bring" into one line.
-          const todoParts: string[] = [];
-          if (v.todo?.trim()) todoParts.push(v.todo.trim());
-          if (bring.length) todoParts.push(`Bring: ${bring.join(", ")}`);
-          return {
-            ...v,
-            phone: contact?.phone ?? null,
-            addr: v.address || contact?.address || null,
-            lastVisit,
-            todoLine: todoParts.join(" · ") || undefined,
-          };
-        })
-      );
+      // Most recent past note per customer, matched case-insensitively. One
+      // query for everyone on today's list, not one per visit (RLS scopes it
+      // to this tech's own notes).
+      const lastByName = new Map<string, JobSummary | null>();
+      const noteRes = await supabase
+        .from("voice_notes")
+        .select("customer_name, summary, created_at")
+        .order("created_at", { ascending: false });
+      for (const n of noteRes.data ?? []) {
+        const key = (n.customer_name as string | null)?.trim().toLowerCase();
+        if (!key || lastByName.has(key)) continue;
+        lastByName.set(key, (n.summary ?? null) as JobSummary | null);
+      }
+
+      const enriched = (visits ?? []).map((v: Visit): Enriched => {
+        const key = v.customer_name?.trim().toLowerCase();
+        const contact = key ? contacts.get(key) : undefined;
+        const s = key ? lastByName.get(key) ?? null : null;
+        const lastVisit = oneLine(s?.workDone, 2) || undefined;
+        const bring =
+          s?.nextSteps
+            ?.filter((x) => /^buy\s*:/i.test(x.trim()))
+            .map((x) => x.replace(/^buy\s*:\s*/i, "")) ?? [];
+        // Combine "what to do" and "what to bring" into one line.
+        const todoParts: string[] = [];
+        if (v.todo?.trim()) todoParts.push(v.todo.trim());
+        if (bring.length) todoParts.push(`Bring: ${bring.join(", ")}`);
+        return {
+          ...v,
+          phone: contact?.phone ?? null,
+          addr: v.address || contact?.address || null,
+          lastVisit,
+          todoLine: todoParts.join(" · ") || undefined,
+        };
+      });
       if (!cancelled) setRows(enriched);
     })();
     return () => {

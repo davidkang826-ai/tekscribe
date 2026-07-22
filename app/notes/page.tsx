@@ -42,13 +42,14 @@ export default async function NotesPage() {
     rows = (notes ?? []) as ArchiveNote[];
   }
 
-  // First upcoming visit per customer.
+  // First upcoming visit per customer, keyed case-insensitively so a visit
+  // filed under "Johnson" still badges a note filed under "johnson".
   const nextVisits: Record<string, string> = {};
   if (!nextRes.error) {
     for (const v of nextRes.data ?? []) {
-      const name = (v.customer_name as string | null)?.trim();
-      if (name && !(name in nextVisits))
-        nextVisits[name] = v.scheduled_at as string;
+      const key = (v.customer_name as string | null)?.trim().toLowerCase();
+      if (key && !(key in nextVisits))
+        nextVisits[key] = v.scheduled_at as string;
     }
   }
 
