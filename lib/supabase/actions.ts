@@ -165,14 +165,23 @@ export async function saveProfile(
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  // Upsert, not update: the profile row is normally created by the
+  // handle_new_user DB trigger at signup, but if that trigger ever isn't live
+  // an update would silently touch 0 rows and trap the tech in an endless
+  // onboarding loop (home would keep bouncing them back here). Upserting makes
+  // onboarding self-healing. business_name is intentionally omitted so an
+  // existing row keeps the name captured at signup.
   const { error } = await supabase
     .from("profiles")
-    .update({
-      phone,
-      reply_to_email: replyTo || user.email,
-      display_name: displayName || null,
-    })
-    .eq("id", user.id);
+    .upsert(
+      {
+        id: user.id,
+        phone,
+        reply_to_email: replyTo || user.email,
+        display_name: displayName || null,
+      },
+      { onConflict: "id" }
+    );
 
   if (error) return { error: error.message };
   redirect("/");
