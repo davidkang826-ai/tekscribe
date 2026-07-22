@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { LogoMark } from "./Logo";
 import { createClient } from "@/lib/supabase/client";
@@ -94,6 +94,25 @@ export default function CalendarView() {
 
   const [canUseContacts, setCanUseContacts] = useState(false);
   useEffect(() => setCanUseContacts(contactsAvailable()), []);
+
+  // The create/edit form and the sync options both open in panels near the
+  // bottom of the page. Scroll them into view when they open so a tap doesn't
+  // look like nothing happened. Keyed on open/close (and which visit is being
+  // edited), not on every keystroke.
+  const formRef = useRef<HTMLDivElement>(null);
+  const formOpen = form !== null;
+  useEffect(() => {
+    if (formOpen) {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [formOpen, form?.id]);
+
+  const syncRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (syncOpen) {
+      syncRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [syncOpen]);
 
   async function fillFormFromContacts() {
     const c = await pickContact();
@@ -483,7 +502,10 @@ export default function CalendarView() {
           🔄 Sync to phone calendar
         </button>
         {syncOpen && (
-          <div className="tt-fade-in mt-2 rounded-2xl border border-border bg-surface p-4 text-left text-[15px] shadow-sm">
+          <div
+            ref={syncRef}
+            className="tt-fade-in mt-2 scroll-mt-20 rounded-2xl border border-border bg-surface p-4 text-left text-[15px] shadow-sm"
+          >
             {syncBusy || !feedUrl ? (
               <p className="text-muted">Preparing your link…</p>
             ) : (
@@ -527,7 +549,10 @@ export default function CalendarView() {
 
       {/* Create / edit */}
       {form && (
-        <div className="mt-4 rounded-2xl border border-brand/30 bg-surface p-4 shadow-sm">
+        <div
+          ref={formRef}
+          className="mt-4 scroll-mt-20 rounded-2xl border border-brand/30 bg-surface p-4 shadow-sm"
+        >
           <h3 className="text-[15px] font-semibold text-foreground">
             {form.id ? "Edit event" : "New event"}
           </h3>
