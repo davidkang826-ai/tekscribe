@@ -35,11 +35,21 @@ export async function GET(
     .maybeSingle();
   if (!profile) return new Response("Not found", { status: 404 });
 
-  const { data: visits } = await admin
+  const visitsFull = await admin
     .from("scheduled_visits")
-    .select("id, customer_name, reason, todo, kind, address, scheduled_at")
+    .select("id, customer_name, reason, todo, kind, address, phone, scheduled_at")
     .eq("user_id", profile.id)
     .order("scheduled_at", { ascending: true });
+  // Tolerate a database where the phone column hasn't been added yet.
+  const visits = visitsFull.error
+    ? (
+        await admin
+          .from("scheduled_visits")
+          .select("id, customer_name, reason, todo, kind, address, scheduled_at")
+          .eq("user_id", profile.id)
+          .order("scheduled_at", { ascending: true })
+      ).data
+    : visitsFull.data;
 
   // Customer directory for phone/email/address, so each event carries the
   // full contact even when the visit row itself only had a name.
@@ -99,12 +109,14 @@ export async function GET(
       ? contacts.get((v.customer_name as string).trim().toLowerCase())
       : undefined;
     const address = (v.address as string) || contact?.address || "";
+    // The number saved on a call reminder wins over the directory lookup.
+    const phone = ((v as { phone?: string | null }).phone as string) || contact?.phone || "";
 
     // Everything the tech needs on the event, so the phone's calendar shows
     // the full picture: who, contact, what it's for.
     const descParts: string[] = [];
     if (v.customer_name) descParts.push(`Client: ${v.customer_name}`);
-    if (contact?.phone) descParts.push(`Phone: ${contact.phone}`);
+    if (phone) descParts.push(`Phone: ${phone}`);
     if (contact?.email) descParts.push(`Email: ${contact.email}`);
     if (address) descParts.push(`Address: ${address}`);
     if (v.todo) descParts.push(`Notes: ${v.todo}`);
@@ -119,9 +131,9 @@ export async function GET(
       `SUMMARY:${esc(title)}`
     );
     if (address) lines.push(`LOCATION:${esc(address)}`);
-    if (contact?.phone) {
+    if (phone) {
       // A tappable phone number on the event, where calendars support it.
-      lines.push(`CONTACT:${esc(contact.phone)}`);
+      lines.push(`CONTACT:${esc(phone)}`);
     }
     if (descParts.length)
       lines.push(`DESCRIPTION:${esc(descParts.join("\n"))}`);

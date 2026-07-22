@@ -128,6 +128,9 @@ create table if not exists public.scheduled_visits (
 -- For databases created before kind/address existed:
 alter table public.scheduled_visits add column if not exists kind text;
 alter table public.scheduled_visits add column if not exists address text;
+-- The number to call for a 'call' reminder (prefilled from the customer's
+-- contact, editable per reminder).
+alter table public.scheduled_visits add column if not exists phone text;
 
 alter table public.scheduled_visits enable row level security;
 

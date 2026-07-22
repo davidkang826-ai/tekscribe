@@ -14,6 +14,7 @@ type Visit = {
   todo: string | null;
   kind?: string | null;
   address?: string | null;
+  phone?: string | null;
   scheduled_at: string;
 };
 
@@ -81,7 +82,7 @@ export default function DigestList() {
       let visits: Visit[] | null = null;
       const full = await supabase
         .from("scheduled_visits")
-        .select("id, note_id, customer_name, reason, todo, kind, address, scheduled_at")
+        .select("id, note_id, customer_name, reason, todo, kind, address, phone, scheduled_at")
         .gte("scheduled_at", dayStart.toISOString())
         .lt("scheduled_at", dayEnd.toISOString())
         .order("scheduled_at", { ascending: true });
@@ -152,7 +153,7 @@ export default function DigestList() {
         if (bring.length) todoParts.push(`Bring: ${bring.join(", ")}`);
         return {
           ...v,
-          phone: contact?.phone ?? null,
+          phone: v.phone || contact?.phone || null,
           addr: v.address || contact?.address || null,
           lastVisit,
           todoLine: todoParts.join(" · ") || undefined,
