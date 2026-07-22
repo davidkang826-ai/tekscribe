@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { isStripeConfigured } from "@/lib/stripe";
 import { planDisplays, planById } from "@/lib/plans";
+import { resolvePlan } from "@/lib/plan-resolve";
 
 export default async function PlansPage(props: {
   searchParams: Promise<{ success?: string; canceled?: string; plan?: string }>;
@@ -22,14 +23,23 @@ export default async function PlansPage(props: {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Current plan, tolerated if the migration hasn't run yet.
+  // Current (effective) plan, tolerated if the migration hasn't run yet.
   let currentPlan = "free";
-  const { data: prof, error } = await supabase
+  const withExp = await supabase
     .from("profiles")
-    .select("plan")
+    .select("plan, plan_status, plan_expires_at")
     .eq("id", user.id)
     .maybeSingle();
-  if (!error && prof?.plan) currentPlan = prof.plan;
+  if (!withExp.error) {
+    currentPlan = resolvePlan(withExp.data);
+  } else {
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("plan")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (prof?.plan) currentPlan = prof.plan;
+  }
 
   return (
     <div className="fixed inset-0 flex flex-col overflow-hidden bg-background">

@@ -152,6 +152,9 @@ export default function Recorder({
     "idle"
   );
   const [error, setError] = useState<string | null>(null);
+  // Set when a save is blocked by the free monthly note cap, so we show an
+  // upgrade prompt instead of a plain error.
+  const [limitReached, setLimitReached] = useState(false);
   const [returnPhase, setReturnPhase] = useState<Phase>("summarized");
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
@@ -235,6 +238,7 @@ export default function Recorder({
     setSummary(null);
     setNoteId(null);
     setError(null);
+    setLimitReached(false);
     setCustomerName("");
     setCustomerEmail("");
     setCustomerPhone("");
@@ -748,6 +752,7 @@ export default function Recorder({
     }
     setArchiveState("saving");
     setError(null);
+    setLimitReached(false);
     const payload = {
       transcript,
       summary,
@@ -766,6 +771,7 @@ export default function Recorder({
       : await saveNote(payload);
     if (result.error) {
       setError(result.error);
+      if (result.limitReached) setLimitReached(true);
       setArchiveState(noteId ? "saved" : "idle");
       return;
     }
@@ -1477,6 +1483,29 @@ export default function Recorder({
                           file each in the right spot.
                         </p>
                       </div>
+
+                      {limitReached ? (
+                        <div className="mt-5 rounded-xl bg-brand-50 p-4 text-center ring-1 ring-brand/20">
+                          <p className="font-semibold text-foreground">
+                            You&apos;ve reached your free notes for this month
+                          </p>
+                          <p className="mt-1 text-[15px] text-muted">
+                            {error} Your recording is safe here in the meantime.
+                          </p>
+                          <a
+                            href="/plans"
+                            className="tt-pop mt-3 inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-white font-semibold text-base shadow-sm hover:bg-brand-600 transition"
+                          >
+                            See Pro
+                          </a>
+                        </div>
+                      ) : (
+                        error && (
+                          <div className="mt-5 rounded-lg bg-red-50 px-4 py-3 text-[15px] text-danger ring-1 ring-red-100">
+                            {error}
+                          </div>
+                        )
+                      )}
 
                       {/* Step 2 actions */}
                       <div className="mt-5 border-t border-border pt-5 text-center">

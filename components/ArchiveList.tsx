@@ -37,7 +37,7 @@ export default function ArchiveList({
   nextVisits,
 }: {
   rows: ArchiveNote[];
-  /** customer name → ISO timestamp of their next upcoming scheduled visit */
+  /** lowercased customer name → ISO timestamp of their next scheduled visit */
   nextVisits: Record<string, string>;
 }) {
   const [sort, setSort] = useState<SortKey>("recent");
@@ -57,7 +57,7 @@ export default function ArchiveList({
         out.push({
           name,
           notes: [],
-          nextVisit: name ? nextVisits[name] : undefined,
+          nextVisit: name ? nextVisits[name.toLowerCase()] : undefined,
         });
       }
       out[indexByKey.get(key)!].notes.push(note);

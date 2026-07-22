@@ -1,8 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { PlanDisplay, Billing } from "@/lib/plans";
-import { selectFreePlan, keepCurrentPlan } from "@/lib/supabase/plan";
+import {
+  selectFreePlan,
+  keepCurrentPlan,
+  redeemPromo,
+} from "@/lib/supabase/plan";
 
 export default function PlanChooser({
   tiers,
@@ -13,9 +18,41 @@ export default function PlanChooser({
   currentPlan: string;
   stripeReady: boolean;
 }) {
+  const router = useRouter();
   const [billing, setBilling] = useState<Billing>("yearly");
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Pilot promo code.
+  const [code, setCode] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [promoOk, setPromoOk] = useState<string | null>(null);
+
+  async function applyCode() {
+    if (!code.trim() || redeeming) return;
+    setRedeeming(true);
+    setPromoError(null);
+    setPromoOk(null);
+    try {
+      const res = await redeemPromo(code);
+      if (res.error) {
+        setPromoError(res.error);
+        return;
+      }
+      const months = res.months
+        ? ` free for ${res.months} month${res.months === 1 ? "" : "s"}`
+        : "";
+      setPromoOk(`You're on ${res.planName ?? "Pro"}${months}. Enjoy the pilot.`);
+      setCode("");
+      // Reload so the current-plan badge and note cap reflect the new plan.
+      router.refresh();
+    } catch {
+      setPromoError("Couldn't redeem that just now. Try again.");
+    } finally {
+      setRedeeming(false);
+    }
+  }
 
   async function checkout(planId: string) {
     setLoading(planId);
@@ -166,6 +203,44 @@ export default function PlanChooser({
             </div>
           );
         })}
+      </div>
+
+      {/* Pilot promo code: unlocks a paid plan for the trial, no card needed. */}
+      <div className="mx-auto mt-8 max-w-sm rounded-2xl border border-border bg-surface p-5 shadow-sm">
+        <div className="text-[13px] font-semibold uppercase tracking-wide text-muted">
+          Have a promo code?
+        </div>
+        {promoOk ? (
+          <p className="mt-2 text-[15px] font-medium text-success">
+            ✓ {promoOk}
+          </p>
+        ) : (
+          <>
+            <div className="mt-2 flex gap-2">
+              <input
+                type="text"
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                onKeyDown={(e) => e.key === "Enter" && applyCode()}
+                placeholder="TEKSCRIBE2026"
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+                className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] font-medium tracking-wide focus:outline-none focus:ring-2 focus:ring-brand/30"
+              />
+              <button
+                onClick={applyCode}
+                disabled={!code.trim() || redeeming}
+                className="tt-pop shrink-0 rounded-lg bg-brand px-4 py-2.5 text-[15px] font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
+              >
+                {redeeming ? "Applying…" : "Apply"}
+              </button>
+            </div>
+            {promoError && (
+              <p className="mt-2 text-[13px] text-danger">{promoError}</p>
+            )}
+          </>
+        )}
       </div>
 
       <p className="mt-6 text-center text-[13px] text-muted">

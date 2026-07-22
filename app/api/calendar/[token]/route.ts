@@ -133,7 +133,10 @@ export async function GET(
   return new Response(lines.join("\r\n"), {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
-      "Cache-Control": "public, max-age=300",
+      // This feed carries customer PII and is authed only by the secret token
+      // in the URL, so it must never sit in a shared/CDN cache. "private" lets
+      // the subscriber's own client cache briefly, nothing in between.
+      "Cache-Control": "private, max-age=300",
       "Content-Disposition": 'inline; filename="tekscribe.ics"',
     },
   });

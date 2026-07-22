@@ -1,7 +1,11 @@
-// One-shot promo setup: TEKSCRIBESEATTLE2026 — 30 days of Pro free.
+// One-shot promo setup: TEKSCRIBE2026 — 30 days of Pro free.
 // Creates a $29-off-first-invoice coupon locked to the Pro product, then a
 // promotion code that customers type at checkout. Expires end of August 2026
 // (Pacific). Checkout already allows promo codes (allow_promotion_codes).
+//
+// This is the SAME code techs enter in-app to unlock the free pilot (see
+// lib/promo.ts, PROMO_CODE). One code, two doors: in-app it grants free Pro
+// with no card; at Stripe checkout it applies this discount for anyone paying.
 //
 // The discount equals one month of Pro, so:
 //   - Pro monthly: first month free
@@ -17,7 +21,7 @@
 import Stripe from "stripe";
 import { readFileSync, existsSync } from "node:fs";
 
-const CODE = "TEKSCRIBESEATTLE2026";
+const CODE = "TEKSCRIBE2026";
 // End of August 2026, 11:59:59pm Pacific.
 const EXPIRES = Math.floor(new Date("2026-08-31T23:59:59-07:00").getTime() / 1000);
 const AMOUNT_OFF = 2900; // one month of Pro, in cents

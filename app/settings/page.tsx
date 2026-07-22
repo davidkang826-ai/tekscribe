@@ -8,6 +8,7 @@ import PlanCard from "@/components/PlanCard";
 import DeleteAccountButton from "@/components/DeleteAccountButton";
 import GoogleDriveCard from "@/components/GoogleDriveCard";
 import { planById } from "@/lib/plans";
+import { resolvePlan, planExpiryLabel } from "@/lib/plan-resolve";
 import { isGoogleConfigured } from "@/lib/google-drive";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -57,7 +58,7 @@ export default async function SettingsPage(props: {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   })();
-  const [profileRes, planRes, driveRes, notesRes] = await Promise.all([
+  const [profileRes, planRes, expRes, driveRes, notesRes] = await Promise.all([
     supabase
       .from("profiles")
       .select("display_name, reply_to_email, business_name")
@@ -66,6 +67,12 @@ export default async function SettingsPage(props: {
     supabase
       .from("profiles")
       .select("plan, plan_status, stripe_customer_id")
+      .eq("id", user.id)
+      .maybeSingle(),
+    // Separate + tolerated: the promo expiry column may not exist yet.
+    supabase
+      .from("profiles")
+      .select("plan_expires_at")
       .eq("id", user.id)
       .maybeSingle(),
     supabase
@@ -82,15 +89,27 @@ export default async function SettingsPage(props: {
   const profile = profileRes.data;
 
   // Plan info, tolerated if the migration hasn't run yet.
-  let planId = "free";
   let planStatus: string | null = null;
   let hasBilling = false;
+  const planExpiresAt =
+    (!expRes.error && expRes.data?.plan_expires_at) || null;
+  let planId = "free";
   if (!planRes.error && planRes.data) {
-    planId = planRes.data.plan || "free";
     planStatus = planRes.data.plan_status ?? null;
     hasBilling = !!planRes.data.stripe_customer_id;
+    // Effective plan, so an expired promo reads as Free here too.
+    planId = resolvePlan({
+      plan: planRes.data.plan,
+      plan_status: planStatus,
+      plan_expires_at: planExpiresAt,
+    });
   }
   const planName = planById(planId)?.name ?? "Free";
+  // Only surface a "pilot access until …" line while the promo is still live.
+  const promoUntil =
+    planStatus === "promo" && planId !== "free"
+      ? planExpiryLabel({ plan_expires_at: planExpiresAt })
+      : null;
 
   // Google Drive connection, tolerated if the migration hasn't run yet.
   let driveConnected = false;
@@ -148,6 +167,7 @@ export default async function SettingsPage(props: {
           hasBilling={hasBilling}
           notesUsed={notesUsed}
           notesLimit={notesLimit}
+          promoUntil={promoUntil}
         />
 
         <div className="flex items-center justify-between border-t border-border pt-5">
