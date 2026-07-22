@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import DeleteNoteButton from "./DeleteNoteButton";
+import ScheduleNextVisit from "./ScheduleNextVisit";
 import { GoogleDriveLogo } from "./GoogleDriveLogo";
 import type { JobSummary } from "@/lib/types";
 
@@ -13,6 +14,8 @@ export type ArchiveNote = {
   transcript: string;
   summary: JobSummary | null;
   customer_email: string | null;
+  customer_phone?: string | null;
+  customer_address?: string | null;
   created_at: string;
   drive_folder_id?: string | null;
   drive_synced_at?: string | null;
@@ -221,6 +224,7 @@ export default function ArchiveList({
 /** Every card is the same compact size; tapping it expands the details. */
 function NoteCard({ note }: { note: ArchiveNote }) {
   const [open, setOpen] = useState(false);
+  const [scheduling, setScheduling] = useState(false);
   const preview =
     note.summary?.workDone?.[0] || note.transcript.replace(/\s+/g, " ");
 
@@ -282,13 +286,45 @@ function NoteCard({ note }: { note: ArchiveNote }) {
               </p>
             )}
 
-            <Link
-              href={`/notes/${note.id}`}
-              onClick={(e) => e.stopPropagation()}
-              className="mt-3 inline-block text-[15px] font-medium text-brand hover:underline"
-            >
-              Open full note
-            </Link>
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setScheduling((v) => !v);
+                }}
+                className="text-[15px] font-medium text-brand hover:underline"
+              >
+                📅 Schedule a visit
+              </button>
+              <Link
+                href={`/notes/${note.id}`}
+                onClick={(e) => e.stopPropagation()}
+                className="text-[15px] font-medium text-brand hover:underline"
+              >
+                Open full note
+              </Link>
+            </div>
+
+            {scheduling && (
+              // Stop clicks and keystrokes inside the scheduler from toggling
+              // the card (the card treats Space/Enter as expand/collapse).
+              <div
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
+                <ScheduleNextVisit
+                  noteId={note.id}
+                  customerName={note.customer_name ?? ""}
+                  jobTitle={note.summary?.jobTitle || note.job_title || "Service visit"}
+                  nextSteps={note.summary?.nextSteps ?? []}
+                  customerRequests={note.summary?.customerRequests ?? []}
+                  customerAddress={note.customer_address ?? ""}
+                  customerPhone={note.customer_phone ?? ""}
+                  onDone={() => setScheduling(false)}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
