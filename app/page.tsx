@@ -55,7 +55,7 @@ export default async function Home() {
           .maybeSingle(),
         supabase
           .from("customers")
-          .select("name, email, phone")
+          .select("name, email, phone, address")
           .order("name", { ascending: true }),
       ]);
 
@@ -80,7 +80,17 @@ export default async function Home() {
     offerDriveBackup =
       isGoogleConfigured && !driveRes.error && !driveRes.data?.google_refresh_token;
 
-    customers = custsRes.data ?? [];
+    // Tolerate an older database without the customers.address column, so the
+    // directory (and its address prefill) still loads.
+    if (!custsRes.error) {
+      customers = custsRes.data ?? [];
+    } else {
+      const { data } = await supabase
+        .from("customers")
+        .select("name, email, phone")
+        .order("name", { ascending: true });
+      customers = data ?? [];
+    }
     userId = user.id;
 
     authed = true;
