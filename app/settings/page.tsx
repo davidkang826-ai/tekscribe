@@ -114,17 +114,17 @@ export default async function SettingsPage(props: {
         </h1>
 
         {drive === "connected" && (
-          <div className="rounded-lg bg-green-50 px-3 py-2.5 text-sm text-success ring-1 ring-green-100">
+          <div className="rounded-lg bg-green-50 px-3 py-2.5 text-[15px] text-success ring-1 ring-green-100">
             ✓ Google Drive connected. New saved visits back up automatically.
           </div>
         )}
         {driveError && (
-          <div className="rounded-lg bg-red-50 px-3 py-2.5 text-sm text-danger ring-1 ring-red-100">
+          <div className="rounded-lg bg-red-50 px-3 py-2.5 text-[15px] text-danger ring-1 ring-red-100">
             {driveErrorMessage(driveError)}
           </div>
         )}
         {deleteError && (
-          <div className="rounded-lg bg-red-50 px-3 py-2.5 text-sm text-danger ring-1 ring-red-100">
+          <div className="rounded-lg bg-red-50 px-3 py-2.5 text-[15px] text-danger ring-1 ring-red-100">
             Couldn&apos;t delete your account just now. Try again, or contact
             support.
           </div>
@@ -152,7 +152,7 @@ export default async function SettingsPage(props: {
 
         <div className="flex items-center justify-between border-t border-border pt-5">
           <SignOutButton />
-          <div className="flex gap-4 text-xs text-muted">
+          <div className="flex gap-4 text-[13px] text-muted">
             <Link href="/privacy" className="hover:text-foreground transition">
               Privacy
             </Link>
@@ -163,7 +163,7 @@ export default async function SettingsPage(props: {
         </div>
 
         <div className="border-t border-border pt-5">
-          <div className="text-xs font-semibold uppercase tracking-wide text-danger mb-2">
+          <div className="text-[13px] font-semibold uppercase tracking-wide text-danger mb-2">
             Danger zone
           </div>
           <DeleteAccountButton />

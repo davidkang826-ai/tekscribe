@@ -7,6 +7,7 @@ import ScheduleNextVisit from "./ScheduleNextVisit";
 import { saveNote, updateNote } from "@/lib/supabase/notes";
 import { upsertCustomer } from "@/lib/supabase/customers";
 import { contactsAvailable, pickContact } from "@/lib/contacts";
+import AddressInput from "./AddressInput";
 import { createClient } from "@/lib/supabase/client";
 import type { JobSummary, Customer, Attachment } from "@/lib/types";
 import {
@@ -108,10 +109,10 @@ async function scaleImageToBlob(
 function StepIndicator({ current }: { current: number }) {
   return (
     <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
-      <span className="text-xs font-semibold uppercase tracking-wide text-brand">
+      <span className="text-[13px] font-semibold uppercase tracking-wide text-brand">
         Step {current} of {STEP_LABELS.length}
       </span>
-      <span className="text-xs text-muted">· {STEP_LABELS[current - 1]}</span>
+      <span className="text-[13px] text-muted">· {STEP_LABELS[current - 1]}</span>
       <div className="ml-1 flex gap-1">
         {STEP_LABELS.map((_, i) => (
           <span
@@ -212,6 +213,22 @@ export default function Recorder({
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = null;
   };
+
+  // Each step should start from its top. When the phase or review step
+  // changes, scroll the containing scroll area (and window) back to 0.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let el = rootRef.current?.parentElement;
+    while (el) {
+      const oy = getComputedStyle(el).overflowY;
+      if (oy === "auto" || oy === "scroll") {
+        el.scrollTop = 0;
+        break;
+      }
+      el = el.parentElement;
+    }
+    window.scrollTo(0, 0);
+  }, [phase, reviewStep]);
 
   const resetAll = () => {
     setTranscript("");
@@ -545,6 +562,19 @@ export default function Recorder({
       setSummary(sum);
       setEditing(false);
       setMessageDirty(false);
+
+      // Prefill the Client fields from any contact details the tech mentioned
+      // in the note, without overwriting anything already filled in.
+      const heard = data.customer as
+        | { name?: string; phone?: string; email?: string; address?: string }
+        | undefined;
+      if (heard) {
+        if (heard.name) setCustomerName((p) => p || heard.name!);
+        if (heard.phone) setCustomerPhone((p) => p || heard.phone!);
+        if (heard.email) setCustomerEmail((p) => p || heard.email!);
+        if (heard.address) setCustomerAddress((p) => p || heard.address!);
+      }
+
       setReviewStep("confirm");
       setPhase("summarized");
     } catch (err) {
@@ -565,15 +595,26 @@ export default function Recorder({
   async function processDetail(blob: Blob) {
     try {
       if (detailCancelledRef.current) return;
+      // Nothing recorded (pressed and released without speaking): do nothing.
+      if (blob.size < 1200) {
+        setError("Didn't catch anything to add.");
+        return;
+      }
       const ext = blob.type.includes("mp4") ? "mp4" : "webm";
       const fd = new FormData();
       fd.append("audio", blob, `add.${ext}`);
-      const tr = await fetch("/api/transcribe", { method: "POST", body: fd });
+      // Timeouts so a hung request can never freeze the button on "Adding it in".
+      const tr = await fetch("/api/transcribe", {
+        method: "POST",
+        body: fd,
+        signal: AbortSignal.timeout(45000),
+      });
       const td = await tr.json();
       if (!tr.ok) throw new Error(td.error || "Could not transcribe.");
       const said = (td.text || "").trim();
-      if (!said) {
-        setError("Didn't catch that. Try again.");
+      // Empty or too short to be a real addition: leave the note untouched.
+      if (said.replace(/[^a-z0-9]/gi, "").length < 3) {
+        setError("Didn't catch anything to add.");
         return;
       }
       const res = await fetch("/api/merge-details", {
@@ -584,6 +625,7 @@ export default function Recorder({
           techName,
           text: said,
         }),
+        signal: AbortSignal.timeout(45000),
       });
       const data = await res.json();
       if (!res.ok || !data.summary)
@@ -595,10 +637,16 @@ export default function Recorder({
       }
       setSummary(merged);
     } catch (err) {
+      const timedOut = err instanceof Error && err.name === "TimeoutError";
       setError(
-        err instanceof Error ? err.message : "Couldn't add that to the note."
+        timedOut
+          ? "That took too long. Check your connection and try again."
+          : err instanceof Error
+            ? err.message
+            : "Couldn't add that to the note."
       );
     } finally {
+      // Always release the button, whatever happened.
       setDetailRec("idle");
     }
   }
@@ -824,7 +872,7 @@ export default function Recorder({
   function mediaButtons() {
     return (
       <div className="flex flex-wrap items-center justify-center gap-2">
-        <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
+        <label className="tt-pop inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-[15px] font-medium text-foreground ring-1 ring-border hover:bg-slate-50">
           📎 Upload Photo or File
           <input
             type="file"
@@ -833,7 +881,7 @@ export default function Recorder({
             className="hidden"
           />
         </label>
-        {uploading && <span className="text-xs text-brand">Uploading…</span>}
+        {uploading && <span className="text-[13px] text-brand">Uploading…</span>}
       </div>
     );
   }
@@ -870,7 +918,7 @@ export default function Recorder({
               type="button"
               onClick={() => setPendingDelete(a)}
               aria-label="Remove attachment"
-              className="tt-pop absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs text-muted ring-1 ring-border shadow-sm hover:text-danger"
+              className="tt-pop absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[13px] text-muted ring-1 ring-border shadow-sm hover:text-danger"
             >
               ✕
             </button>
@@ -883,7 +931,10 @@ export default function Recorder({
   const firstName = techName.trim().split(/\s+/)[0] || "";
 
   return (
-    <div className="flex flex-col items-center w-full max-w-xl mx-auto">
+    <div
+      ref={rootRef}
+      className="flex flex-col items-center w-full max-w-xl mx-auto"
+    >
       {/* The greeting belongs to the recording moment; once a note is in
           flight the flow's own steps take over the screen. */}
       {showButton && (
@@ -900,11 +951,11 @@ export default function Recorder({
       {/* Recordings saved offline, waiting to be finished */}
       {pendingCount > 0 && phase === "idle" && (
         <div className="mb-6 w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center">
-          <p className="text-sm font-medium text-amber-900">
+          <p className="text-[15px] font-medium text-amber-900">
             ⏳ {pendingCount} recording{pendingCount > 1 ? "s" : ""} saved on your
             phone
           </p>
-          <p className="mt-0.5 text-xs text-amber-900/80">
+          <p className="mt-0.5 text-[13px] text-amber-900/80">
             {isOnline
               ? "Ready to finish now."
               : "We'll finish the moment you're back online."}
@@ -912,7 +963,7 @@ export default function Recorder({
           {isOnline && (
             <button
               onClick={processNextPending}
-              className="tt-pop mt-2 inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-600 transition"
+              className="tt-pop mt-2 inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-[15px] font-medium text-white shadow-sm hover:bg-brand-600 transition"
             >
               ▶ Finish {pendingCount > 1 ? "the next one" : "it"} now
             </button>
@@ -979,19 +1030,19 @@ export default function Recorder({
                 <span className="font-mono text-lg tabular-nums text-brand">
                   {formatTime(elapsed)}
                 </span>
-                <div className="text-xs text-muted mt-0.5">
+                <div className="text-[13px] text-muted mt-0.5">
                   {holding ? "Keep holding to finish…" : statusText[phase]}
                 </div>
               </>
             ) : (
-              <span className="text-muted text-sm">{statusText[phase]}</span>
+              <span className="text-muted text-[15px]">{statusText[phase]}</span>
             )}
           </div>
 
           {endConfirm && (
             <div className="mt-4 w-full max-w-sm rounded-2xl border border-border bg-surface p-5 shadow-sm text-center">
               <p className="text-foreground font-medium">End the recording?</p>
-              <p className="text-sm text-muted mt-1 mb-4">
+              <p className="text-[15px] text-muted mt-1 mb-4">
                 We&apos;ll write it up. Keep talking if you&apos;re not done.
               </p>
               <div className="flex flex-wrap justify-center gap-3">
@@ -1024,7 +1075,7 @@ export default function Recorder({
                 <>
                   {mediaButtons()}
                   {attachments.length > 0 && (
-                    <span className="text-xs text-muted">
+                    <span className="text-[13px] text-muted">
                       {attachments.length} attached
                     </span>
                   )}
@@ -1032,7 +1083,7 @@ export default function Recorder({
               )}
               <button
                 onClick={openEndConfirm}
-                className="mt-1 text-xs font-medium text-muted underline hover:text-foreground"
+                className="mt-1 text-[13px] font-medium text-muted underline hover:text-foreground"
               >
                 or tap here to end
               </button>
@@ -1042,7 +1093,7 @@ export default function Recorder({
       )}
 
       {error && (
-        <div className="mt-4 w-full rounded-lg bg-red-50 text-danger text-sm px-4 py-3 ring-1 ring-red-100">
+        <div className="mt-4 w-full rounded-lg bg-red-50 text-danger text-[15px] px-4 py-3 ring-1 ring-red-100">
           {error}
         </div>
       )}
@@ -1062,13 +1113,13 @@ export default function Recorder({
           <p className="text-foreground font-medium">
             Transcription didn&apos;t go through
           </p>
-          <p className="text-sm text-muted mt-1 mb-4">
+          <p className="text-[15px] text-muted mt-1 mb-4">
             Your recording is safe. No need to say it again, just try once more.
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             <button
               onClick={retryTranscribe}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 transition"
+              className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-white font-medium text-[15px] shadow-sm hover:bg-brand-600 transition"
             >
               ↻ Retry transcription
             </button>
@@ -1077,7 +1128,7 @@ export default function Recorder({
                 resetAll();
                 startRecording();
               }}
-              className="inline-flex items-center gap-2 rounded-lg bg-surface px-5 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 transition"
+              className="inline-flex items-center gap-2 rounded-lg bg-surface px-5 py-2.5 text-foreground font-medium text-[15px] ring-1 ring-border hover:bg-slate-50 transition"
             >
               🎙 Discard &amp; re-record
             </button>
@@ -1089,7 +1140,7 @@ export default function Recorder({
         <div className="mt-4 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm text-center">
           <div className="text-2xl mb-1">📴</div>
           <p className="text-foreground font-medium">Saved on your phone</p>
-          <p className="text-sm text-muted mt-1 mb-4">
+          <p className="text-[15px] text-muted mt-1 mb-4">
             {isOnline
               ? "Your recording is safe. Let's turn it into a note."
               : "You're offline, so we saved your recording here. We'll finish it automatically the moment you're back online. It's safe to close the app."}
@@ -1097,7 +1148,7 @@ export default function Recorder({
           <div className="flex flex-wrap justify-center gap-3">
             <button
               onClick={processNextPending}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-white font-medium text-sm shadow-sm hover:bg-brand-600 transition"
+              className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-white font-medium text-[15px] shadow-sm hover:bg-brand-600 transition"
             >
               {isOnline ? "▶ Finish it now" : "↻ Try now"}
             </button>
@@ -1106,7 +1157,7 @@ export default function Recorder({
                 resetAll();
                 setPhase("idle");
               }}
-              className="inline-flex items-center gap-2 rounded-lg bg-surface px-5 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 transition"
+              className="inline-flex items-center gap-2 rounded-lg bg-surface px-5 py-2.5 text-foreground font-medium text-[15px] ring-1 ring-border hover:bg-slate-50 transition"
             >
               Done for now
             </button>
@@ -1124,14 +1175,14 @@ export default function Recorder({
       {/* Step 1: check the transcript, add media, then write the summary */}
       {phase === "transcript" && (
         <div className="w-full">
-          <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-2">
+          <label className="block text-[13px] font-semibold uppercase tracking-wide text-muted mb-2">
             What you said
           </label>
           <textarea
             value={transcript}
             onChange={(e) => setTranscript(e.target.value)}
             rows={6}
-            className="w-full rounded-xl border border-border bg-surface p-4 text-foreground text-[15px] leading-relaxed shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
+            className="w-full rounded-xl border border-border bg-surface p-4 text-foreground text-[17px] leading-relaxed shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
           />
           {audioUrl && (
             <div className="mt-2">
@@ -1142,7 +1193,7 @@ export default function Recorder({
           {canSave && (
             <div className="mt-4">
               {mediaButtons()}
-              <p className="mt-1.5 text-center text-[11px] text-muted">
+              <p className="mt-1.5 text-center text-[13px] text-muted">
                 Add photos or files from the visit. Tap one to view.
               </p>
               {attachmentGrid()}
@@ -1179,20 +1230,20 @@ export default function Recorder({
       {phase === "confirmDelete" && (
         <div className="mt-4 w-full rounded-2xl border border-border bg-surface p-5 shadow-sm text-center">
           <p className="text-foreground font-medium">Delete this note?</p>
-          <p className="text-sm text-muted mt-1 mb-4">This can&apos;t be undone.</p>
+          <p className="text-[15px] text-muted mt-1 mb-4">This can&apos;t be undone.</p>
           <div className="flex justify-center gap-3">
             <button
               onClick={() => {
                 resetAll();
                 setPhase("idle");
               }}
-              className="tt-pop inline-flex items-center justify-center rounded-lg bg-danger px-8 py-2.5 text-white font-medium text-sm shadow-sm hover:opacity-90 transition"
+              className="tt-pop inline-flex items-center justify-center rounded-lg bg-danger px-8 py-2.5 text-white font-medium text-[15px] shadow-sm hover:opacity-90 transition"
             >
               Yes
             </button>
             <button
               onClick={() => setPhase(returnPhase)}
-              className="tt-pop inline-flex items-center justify-center rounded-lg bg-surface px-8 py-2.5 text-foreground font-medium text-sm ring-1 ring-border hover:bg-slate-50 transition"
+              className="tt-pop inline-flex items-center justify-center rounded-lg bg-surface px-8 py-2.5 text-foreground font-medium text-[15px] ring-1 ring-border hover:bg-slate-50 transition"
             >
               No
             </button>
@@ -1229,14 +1280,14 @@ export default function Recorder({
               {reviewStep === "confirm" && !editing && (
                 <div className="mb-4 rounded-xl bg-brand-50/60 p-4">
                   <div className="mb-2 flex items-center justify-between gap-2">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-brand">
+                    <div className="text-[13px] font-semibold uppercase tracking-wide text-brand">
                       Client
                     </div>
                     {canUseContacts && (
                       <button
                         type="button"
                         onClick={fillFromContacts}
-                        className="tt-pop rounded-full bg-surface px-3 py-1 text-xs font-medium text-brand ring-1 ring-border hover:bg-white transition"
+                        className="tt-pop rounded-full bg-surface px-3 py-1 text-[13px] font-medium text-brand ring-1 ring-border hover:bg-white transition"
                       >
                         📇 From Contacts
                       </button>
@@ -1249,7 +1300,7 @@ export default function Recorder({
                       value={customerName}
                       onChange={(e) => onCustomerName(e.target.value)}
                       placeholder="Client name"
-                      className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] font-medium focus:outline-none focus:ring-2 focus:ring-brand/30"
+                      className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] font-medium focus:outline-none focus:ring-2 focus:ring-brand/30"
                     />
                     <datalist id="tt-customers">
                       {uniqueNames.map((n) => (
@@ -1258,7 +1309,7 @@ export default function Recorder({
                     </datalist>
 
                     {nameMatches.length > 1 && (
-                      <div className="rounded-lg bg-surface p-2.5 text-xs ring-1 ring-border">
+                      <div className="rounded-lg bg-surface p-2.5 text-[13px] ring-1 ring-border">
                         <p className="text-muted mb-1.5">
                           A few named {customerName}. Which one?
                         </p>
@@ -1283,7 +1334,7 @@ export default function Recorder({
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
                       placeholder="Phone"
-                      className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                      className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
                     />
                     <input
                       type="email"
@@ -1293,15 +1344,12 @@ export default function Recorder({
                       value={customerEmail}
                       onChange={(e) => setCustomerEmail(e.target.value)}
                       placeholder="Email"
-                      className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                      className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
                     />
-                    <input
-                      type="text"
-                      autoCapitalize="words"
+                    <AddressInput
                       value={customerAddress}
-                      onChange={(e) => setCustomerAddress(e.target.value)}
-                      placeholder="Address"
-                      className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                      onChange={setCustomerAddress}
+                      className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
                     />
                   </div>
                 </div>
@@ -1309,7 +1357,7 @@ export default function Recorder({
 
               {reviewStep === "confirm" && (
                 <div className="flex items-center justify-between gap-2 mb-3">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-accent-600">
+                  <span className="text-[13px] font-semibold uppercase tracking-wide text-accent-600">
                     AI Summary
                   </span>
                   {reviewStep === "confirm" && editing && (
@@ -1320,7 +1368,7 @@ export default function Recorder({
                         setEditing(false);
                         maybeRefreshMessage(cleaned);
                       }}
-                      className="tt-pop text-xs font-medium text-brand hover:underline"
+                      className="tt-pop text-[13px] font-medium text-brand hover:underline"
                     >
                       ✓ Done editing
                     </button>
@@ -1352,7 +1400,7 @@ export default function Recorder({
                   />
 
                   <div className="mt-4">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-brand mb-1.5">
+                    <div className="text-[13px] font-semibold uppercase tracking-wide text-brand mb-1.5">
                       Customer requests
                     </div>
                     {summary.customerRequests.length ? (
@@ -1360,7 +1408,7 @@ export default function Recorder({
                         {summary.customerRequests.map((item, i) => (
                           <li
                             key={i}
-                            className="flex gap-2 text-[15px] text-foreground"
+                            className="flex gap-2 text-[17px] text-foreground"
                           >
                             <span className="text-brand">•</span>
                             <span>{item}</span>
@@ -1368,7 +1416,7 @@ export default function Recorder({
                         ))}
                       </ul>
                     ) : (
-                      <p className="text-[15px] text-muted">None</p>
+                      <p className="text-[17px] text-muted">None</p>
                     )}
                   </div>
 
@@ -1388,7 +1436,7 @@ export default function Recorder({
                       {/* Forgot something? Say it or type it — side by side
                           so both ways to fix the note are equally obvious. */}
                       <div className="mt-5 flex flex-col items-center gap-1.5 border-t border-border pt-5">
-                        <p className="text-sm font-medium text-foreground">
+                        <p className="text-[15px] font-medium text-foreground">
                           Forgot something? Add or fix it:
                         </p>
                         <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
@@ -1400,22 +1448,17 @@ export default function Recorder({
                                 : startDetailVoice
                             }
                             disabled={detailRec === "busy"}
-                            className={`tt-pop inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium ring-1 transition ${
+                            className={`tt-pop inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[15px] font-medium ring-1 transition ${
                               detailRec === "recording"
-                                ? "bg-danger text-white ring-danger"
+                                ? "bg-danger text-white ring-danger tt-pulse"
                                 : "bg-surface text-brand ring-border hover:bg-brand-50 disabled:opacity-60"
                             }`}
                           >
-                            {detailRec === "recording" ? (
-                              <>
-                                <span className="inline-block h-2 w-2 rounded-full bg-white tt-pulse" />
-                                Stop &amp; add it
-                              </>
-                            ) : detailRec === "busy" ? (
-                              "Adding it in…"
-                            ) : (
-                              "🎙 Say it"
-                            )}
+                            {detailRec === "recording"
+                              ? "Stop & add it"
+                              : detailRec === "busy"
+                                ? "Adding it in…"
+                                : "🎙 Say it"}
                           </button>
                           <button
                             type="button"
@@ -1424,12 +1467,12 @@ export default function Recorder({
                               setEditing(true);
                             }}
                             disabled={detailRec !== "idle"}
-                            className="tt-pop inline-flex items-center gap-1.5 rounded-full bg-surface px-4 py-2 text-sm font-medium text-brand ring-1 ring-border hover:bg-brand-50 disabled:opacity-60 transition"
+                            className="tt-pop inline-flex items-center gap-1.5 rounded-full bg-surface px-4 py-2 text-[15px] font-medium text-brand ring-1 ring-border hover:bg-brand-50 disabled:opacity-60 transition"
                           >
                             ✏️ Type it
                           </button>
                         </div>
-                        <p className="text-[11px] text-muted">
+                        <p className="text-[13px] text-muted">
                           Parts, customer requests, next steps, any detail. We
                           file each in the right spot.
                         </p>
@@ -1465,7 +1508,7 @@ export default function Recorder({
                         </div>
                         <button
                           onClick={toTranscript}
-                          className="mt-3 text-xs font-medium text-muted hover:text-foreground transition-colors"
+                          className="mt-3 text-[13px] font-medium text-muted hover:text-foreground transition-colors"
                         >
                           Fix the transcript
                         </button>
@@ -1479,13 +1522,13 @@ export default function Recorder({
                       <div className="mt-4">
                         <button
                           onClick={() => setReviewStep("confirm")}
-                          className="tt-pop text-xs font-medium text-muted hover:text-foreground transition-colors"
+                          className="tt-pop text-[13px] font-medium text-muted hover:text-foreground transition-colors"
                         >
                           Back to the note
                         </button>
                       </div>
                       {archiveState === "saved" && canSave && (
-                        <p className="mt-2 text-center text-sm font-medium text-success">
+                        <p className="mt-2 text-center text-[15px] font-medium text-success">
                           ✓ Saved to your archive
                         </p>
                       )}
@@ -1513,6 +1556,7 @@ export default function Recorder({
                     <ScheduleNextVisit
                       customerName={customerName}
                       customerAddress={customerAddress}
+                      customerPhone={customerPhone}
                       jobTitle={summary.jobTitle}
                       nextSteps={summary.nextSteps}
                       customerRequests={summary.customerRequests}
@@ -1565,7 +1609,7 @@ export default function Recorder({
             <p className="font-medium text-foreground">
               Delete this attachment?
             </p>
-            <p className="mt-1 mb-4 truncate text-xs text-muted">
+            <p className="mt-1 mb-4 truncate text-[13px] text-muted">
               {pendingDelete.name}
             </p>
             <div className="flex justify-center gap-3">
@@ -1574,13 +1618,13 @@ export default function Recorder({
                   removeAttachment(pendingDelete);
                   setPendingDelete(null);
                 }}
-                className="tt-pop rounded-lg bg-danger px-6 py-2.5 text-sm font-medium text-white shadow-sm hover:opacity-90 transition"
+                className="tt-pop rounded-lg bg-danger px-6 py-2.5 text-[15px] font-medium text-white shadow-sm hover:opacity-90 transition"
               >
                 Delete
               </button>
               <button
                 onClick={() => setPendingDelete(null)}
-                className="tt-pop rounded-lg bg-surface px-6 py-2.5 text-sm font-medium text-foreground ring-1 ring-border hover:bg-slate-50 transition"
+                className="tt-pop rounded-lg bg-surface px-6 py-2.5 text-[15px] font-medium text-foreground ring-1 ring-border hover:bg-slate-50 transition"
               >
                 Keep
               </button>
@@ -1605,7 +1649,7 @@ function SummarySection({
   return (
     <div className="mt-4">
       <div
-        className={`text-xs font-semibold uppercase tracking-wide mb-1.5 ${
+        className={`text-[13px] font-semibold uppercase tracking-wide mb-1.5 ${
           accent ? "text-accent-600" : "text-muted"
         }`}
       >
@@ -1615,7 +1659,7 @@ function SummarySection({
         {items.map((item, i) => (
           <li
             key={i}
-            className="flex gap-2 text-[15px] text-foreground tt-fade-in"
+            className="flex gap-2 text-[17px] text-foreground tt-fade-in"
             style={{ animationDelay: `${i * 90}ms` }}
           >
             <span className={accent ? "text-accent" : "text-brand"}>•</span>
@@ -1704,6 +1748,7 @@ function SummaryEditor({
           techName,
           text,
         }),
+        signal: AbortSignal.timeout(45000),
       });
       const data = await res.json();
       if (!res.ok || !data.summary)
@@ -1724,22 +1769,36 @@ function SummaryEditor({
 
   async function processVoice(blob: Blob) {
     try {
+      if (blob.size < 1200) {
+        setAddError("Didn't catch anything to add.");
+        setAddRec("idle");
+        return;
+      }
       const ext = blob.type.includes("mp4") ? "mp4" : "webm";
       const fd = new FormData();
       fd.append("audio", blob, `add.${ext}`);
-      const tr = await fetch("/api/transcribe", { method: "POST", body: fd });
+      const tr = await fetch("/api/transcribe", {
+        method: "POST",
+        body: fd,
+        signal: AbortSignal.timeout(45000),
+      });
       const td = await tr.json();
       if (!tr.ok) throw new Error(td.error || "Could not transcribe.");
       const said = (td.text || "").trim();
-      if (!said) {
-        setAddError("Didn't catch that. Try again.");
+      if (said.replace(/[^a-z0-9]/gi, "").length < 3) {
+        setAddError("Didn't catch anything to add.");
         setAddRec("idle");
         return;
       }
       await mergeIn(said);
     } catch (e) {
+      const timedOut = e instanceof Error && e.name === "TimeoutError";
       setAddError(
-        e instanceof Error ? e.message : "Something went wrong adding that."
+        timedOut
+          ? "That took too long. Try again."
+          : e instanceof Error
+            ? e.message
+            : "Something went wrong adding that."
       );
       setAddRec("idle");
     }
@@ -1785,10 +1844,10 @@ function SummaryEditor({
       {/* First thing they see: just say or type what's missing and the AI
           files it — hunting for the right section by hand is the fallback. */}
       <div className="rounded-xl border border-dashed border-brand/40 bg-brand-50/50 p-3">
-        <p className="text-sm font-semibold text-foreground">
+        <p className="text-[15px] font-semibold text-foreground">
           Add what&apos;s missing
         </p>
-        <p className="mt-0.5 text-[11px] text-muted">
+        <p className="mt-0.5 text-[13px] text-muted">
           Say or type it in one go: work done, parts used, customer requests,
           next steps. We file each in the right spot.
         </p>
@@ -1802,13 +1861,13 @@ function SummaryEditor({
             }}
             placeholder="Type what's missing…"
             disabled={addRec !== "idle"}
-            className="flex-1 min-w-0 rounded-lg border border-border bg-surface px-3 py-2 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:opacity-60"
+            className="flex-1 min-w-0 rounded-lg border border-border bg-surface px-3 py-2 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:opacity-60"
           />
           <button
             type="button"
             onClick={() => addText.trim() && mergeIn(addText.trim())}
             disabled={!addText.trim() || addRec !== "idle"}
-            className="tt-pop shrink-0 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
+            className="tt-pop shrink-0 rounded-lg bg-brand px-4 py-2 text-[15px] font-medium text-white shadow-sm hover:bg-brand-600 disabled:opacity-60 transition"
           >
             Add
           </button>
@@ -1818,49 +1877,44 @@ function SummaryEditor({
             type="button"
             onClick={addRec === "recording" ? stopVoice : startVoice}
             disabled={addRec === "busy"}
-            className={`tt-pop inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition ${
+            className={`tt-pop inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium ring-1 transition ${
               addRec === "recording"
-                ? "bg-danger text-white ring-danger"
+                ? "bg-danger text-white ring-danger tt-pulse"
                 : "bg-surface text-brand ring-border hover:bg-white disabled:opacity-60"
             }`}
           >
-            {addRec === "recording" ? (
-              <>
-                <span className="inline-block h-2 w-2 rounded-full bg-white tt-pulse" />
-                Stop &amp; add
-              </>
-            ) : addRec === "busy" ? (
-              "Adding it in…"
-            ) : (
-              "🎙 Or say it instead"
-            )}
+            {addRec === "recording"
+              ? "Stop & add"
+              : addRec === "busy"
+                ? "Adding it in…"
+                : "🎙 Or say it instead"}
           </button>
           {addRec === "recording" && (
-            <span className="text-xs text-danger">Listening…</span>
+            <span className="text-[13px] text-danger">Listening…</span>
           )}
         </div>
-        {addError && <p className="mt-1.5 text-xs text-danger">{addError}</p>}
+        {addError && <p className="mt-1.5 text-[13px] text-danger">{addError}</p>}
       </div>
 
-      <p className="text-xs text-muted">
+      <p className="text-[13px] text-muted">
         ✏️ Or tap any line below to fix it, ✕ to remove it. Anything you type
         stays put.
       </p>
 
       <div>
-        <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+        <label className="block text-[13px] font-semibold uppercase tracking-wide text-muted mb-1">
           Title
         </label>
         <input
           value={summary.jobTitle}
           onChange={(e) => onChange({ ...summary, jobTitle: e.target.value })}
-          className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+          className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
       </div>
 
       {fields.map(([key, label]) => (
         <div key={key}>
-          <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+          <label className="block text-[13px] font-semibold uppercase tracking-wide text-muted mb-1">
             {label}
           </label>
           <div className="space-y-2">
@@ -1876,7 +1930,7 @@ function SummaryEditor({
                       )
                     )
                   }
-                  className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                  className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
                 />
                 <button
                   type="button"
@@ -1896,7 +1950,7 @@ function SummaryEditor({
             <button
               type="button"
               onClick={() => setList(key, [...summary[key], ""])}
-              className="tt-pop text-xs font-medium text-brand hover:underline"
+              className="tt-pop text-[13px] font-medium text-brand hover:underline"
             >
               ✏️ Add by typing
             </button>
@@ -1905,7 +1959,7 @@ function SummaryEditor({
       ))}
 
       <div>
-        <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+        <label className="block text-[13px] font-semibold uppercase tracking-wide text-muted mb-1">
           Customer message
         </label>
         <textarea
@@ -1915,7 +1969,7 @@ function SummaryEditor({
             onMessageManualEdit?.();
           }}
           rows={4}
-          className="w-full rounded-lg border border-border bg-surface p-3 text-[15px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/30"
+          className="w-full rounded-lg border border-border bg-surface p-3 text-[17px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
       </div>
     </div>

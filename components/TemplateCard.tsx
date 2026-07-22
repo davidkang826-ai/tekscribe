@@ -25,10 +25,10 @@ export default function TemplateCard({
         onClick={() => setPreviewing(true)}
         className="relative flex min-h-[112px] w-full flex-col items-center justify-center rounded-2xl border-2 border-border bg-surface px-3 pt-6 pb-4 text-center shadow-sm transition hover:border-brand/50 hover:shadow"
       >
-        <h3 className="text-sm font-semibold leading-snug text-foreground break-words">
+        <h3 className="text-[15px] font-semibold leading-snug text-foreground break-words">
           {name}
         </h3>
-        <span className="mt-1.5 text-[11px] font-medium text-brand">
+        <span className="mt-1.5 text-[13px] font-medium text-brand">
           {isForm ? "Preview form" : "Preview"}
         </span>
       </button>
@@ -65,7 +65,7 @@ export default function TemplateCard({
                   />
                 </div>
               ) : (
-                <pre className="whitespace-pre-wrap rounded-xl border border-border bg-slate-50 p-4 text-[14px] leading-relaxed text-foreground font-sans">
+                <pre className="whitespace-pre-wrap rounded-xl border border-border bg-slate-50 p-4 text-[16px] leading-relaxed text-foreground font-sans">
                   {content}
                 </pre>
               )}

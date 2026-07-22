@@ -126,7 +126,7 @@ export default function ArchiveList({
           onFocus={() => setSearchFocused(true)}
           onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
           placeholder="Search clients…"
-          className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+          className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
         {searchFocused && suggestions.length > 0 && (
           <ul className="tt-elevate absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-xl border border-border bg-surface">
@@ -136,7 +136,7 @@ export default function ArchiveList({
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => setQuery(n)}
-                  className="block w-full px-4 py-2.5 text-left text-[15px] text-foreground hover:bg-brand-50 transition"
+                  className="block w-full px-4 py-2.5 text-left text-[17px] text-foreground hover:bg-brand-50 transition"
                 >
                   👤 {n}
                 </button>
@@ -153,7 +153,7 @@ export default function ArchiveList({
             key={s.key}
             type="button"
             onClick={() => setSort(s.key)}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition ${
+            className={`rounded-full px-3 py-1.5 text-[13px] font-medium ring-1 transition ${
               sort === s.key
                 ? "bg-brand text-white ring-brand"
                 : "bg-surface text-muted ring-border hover:text-foreground"
@@ -173,12 +173,12 @@ export default function ArchiveList({
           {visible.map((group, gi) => (
             <div key={group.name ?? `no-customer-${gi}`}>
               {hasCustomers && (
-                <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                <h2 className="text-[15px] font-semibold text-foreground mb-3 flex items-center gap-2">
                   <span className="truncate">{group.name ?? "No customer"}</span>
                   {group.nextVisit && (
                     <Link
                       href="/calendar"
-                      className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-semibold text-brand hover:bg-brand/10 transition"
+                      className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-[12px] font-semibold text-brand hover:bg-brand/10 transition"
                     >
                       Next{" "}
                       {new Date(group.nextVisit).toLocaleDateString(undefined, {
@@ -245,7 +245,7 @@ function NoteCard({ note }: { note: ArchiveNote }) {
           <h3 className="font-semibold text-foreground truncate">
             {note.job_title || "Service visit"}
           </h3>
-          <time className="text-xs text-muted whitespace-nowrap">
+          <time className="text-[13px] text-muted whitespace-nowrap">
             {new Date(note.created_at).toLocaleDateString(undefined, {
               month: "short",
               day: "numeric",
@@ -255,24 +255,24 @@ function NoteCard({ note }: { note: ArchiveNote }) {
         </div>
 
         {!open ? (
-          <p className="mt-2 text-[15px] text-muted line-clamp-1">{preview}</p>
+          <p className="mt-2 text-[17px] text-muted line-clamp-1">{preview}</p>
         ) : (
           <div className="tt-fade-in">
             {note.summary?.workDone?.length ? (
               <ul className="mt-2 space-y-1">
                 {note.summary.workDone.map((item, i) => (
-                  <li key={i} className="flex gap-2 text-[15px] text-foreground">
+                  <li key={i} className="flex gap-2 text-[17px] text-foreground">
                     <span className="text-brand">•</span>
                     <span>{item}</span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="mt-2 text-[15px] text-muted">{note.transcript}</p>
+              <p className="mt-2 text-[17px] text-muted">{note.transcript}</p>
             )}
 
             {(note.customer_email || note.drive_synced_at) && (
-              <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+              <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-muted">
                 {note.customer_email && (
                   <span>Sent to {note.customer_email}</span>
                 )}
@@ -285,7 +285,7 @@ function NoteCard({ note }: { note: ArchiveNote }) {
             <Link
               href={`/notes/${note.id}`}
               onClick={(e) => e.stopPropagation()}
-              className="mt-3 inline-block text-sm font-medium text-brand hover:underline"
+              className="mt-3 inline-block text-[15px] font-medium text-brand hover:underline"
             >
               Open full note
             </Link>

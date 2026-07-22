@@ -12,7 +12,7 @@ export default function ForgotPasswordPage() {
           <h1 className="text-xl font-semibold text-foreground mb-1">
             Reset your password
           </h1>
-          <p className="text-sm text-muted mb-5">
+          <p className="text-[15px] text-muted mb-5">
             Enter your email and we&apos;ll send you a reset code.
           </p>
           <ForgotPasswordForm />

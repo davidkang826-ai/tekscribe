@@ -156,7 +156,7 @@ export default function BottomNav() {
               key={href}
               href={href}
               aria-current={active ? "page" : undefined}
-              className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors ${
+              className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[12px] font-medium transition-colors ${
                 active ? "text-brand" : "text-muted hover:text-foreground"
               }`}
             >

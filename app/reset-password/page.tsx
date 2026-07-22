@@ -25,13 +25,13 @@ export default async function ResetPasswordPage() {
           </h1>
           {user ? (
             <>
-              <p className="text-sm text-muted mb-5">
+              <p className="text-[15px] text-muted mb-5">
                 Choose a new password for your account.
               </p>
               <ResetPasswordForm />
             </>
           ) : (
-            <p className="text-sm text-muted mt-2">
+            <p className="text-[15px] text-muted mt-2">
               This reset link is invalid or has expired.{" "}
               <Link href="/forgot-password" className="text-brand font-medium">
                 Request a new one

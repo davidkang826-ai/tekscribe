@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { scheduleVisit } from "@/lib/supabase/visits";
 import { TIME_OPTIONS, dateInputValue, combineDateTime } from "@/lib/times";
+import AddressInput from "./AddressInput";
 
 type CalPref = "google" | "apple";
 const PREF_KEY = "tekscribe.calendar-pref";
@@ -50,11 +51,13 @@ export default function ScheduleNextVisit({
   nextSteps,
   noteId,
   customerAddress = "",
+  customerPhone = "",
   customerRequests = [],
   onDone,
 }: {
   customerName: string;
   customerAddress?: string;
+  customerPhone?: string;
   jobTitle: string;
   nextSteps: string[];
   customerRequests?: string[];
@@ -69,6 +72,8 @@ export default function ScheduleNextVisit({
   const [kind, setKind] = useState<"visit" | "call">("visit");
   // Prefill the address with what the tech entered on the note.
   const [address, setAddress] = useState(customerAddress);
+  // For a call reminder: the number to call, prefilled from the note.
+  const [phone, setPhone] = useState(customerPhone);
 
   // Prefill "what the next visit is for" from the AI note: the follow-ups
   // and things the customer asked for (purchases stay off, they're the tech's
@@ -100,6 +105,7 @@ export default function ScheduleNextVisit({
     const who = customerName || jobTitle;
     const title = kind === "call" ? `Call ${who}` : `Next visit: ${who}`;
     const lines = [reason];
+    if (kind === "call" && phone.trim()) lines.push(`Call: ${phone.trim()}`);
     if (todo.trim()) lines.push(`To do: ${todo.trim()}`);
     if (kind === "visit" && bringList) lines.push(`Bring: ${bringList}`);
     if (noteId)
@@ -193,7 +199,7 @@ export default function ScheduleNextVisit({
       type="button"
       onClick={addGoogle}
       disabled={busy}
-      className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold shadow-sm transition disabled:opacity-60 ${
+      className={`flex-1 rounded-xl px-4 py-3 text-[15px] font-semibold shadow-sm transition disabled:opacity-60 ${
         googleFirst
           ? "bg-brand text-white hover:bg-brand-600"
           : "bg-surface text-foreground ring-1 ring-border hover:bg-slate-50"
@@ -208,7 +214,7 @@ export default function ScheduleNextVisit({
       type="button"
       onClick={addApple}
       disabled={busy}
-      className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold shadow-sm transition disabled:opacity-60 ${
+      className={`flex-1 rounded-xl px-4 py-3 text-[15px] font-semibold shadow-sm transition disabled:opacity-60 ${
         !googleFirst
           ? "bg-brand text-white hover:bg-brand-600"
           : "bg-surface text-foreground ring-1 ring-border hover:bg-slate-50"
@@ -237,7 +243,7 @@ export default function ScheduleNextVisit({
               key={k}
               type="button"
               onClick={() => setKind(k)}
-              className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
+              className={`rounded-full px-3.5 py-1.5 text-[15px] font-medium transition ${
                 kind === k
                   ? "bg-surface text-foreground shadow-sm"
                   : "text-muted hover:text-foreground"
@@ -250,22 +256,40 @@ export default function ScheduleNextVisit({
 
         {kind === "visit" && (
           <div className="mt-3">
-            <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+            <label className="block text-[13px] font-semibold uppercase tracking-wide text-muted mb-1">
               Address
             </label>
-            <input
-              type="text"
+            <AddressInput
               value={address}
-              onChange={(e) => setAddress(e.target.value)}
+              onChange={setAddress}
               placeholder="123 Main St, Seattle, WA"
-              autoComplete="street-address"
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
             />
           </div>
         )}
 
+        {kind === "call" && (
+          <div className="mt-3">
+            <label className="block text-[13px] font-semibold uppercase tracking-wide text-muted mb-1">
+              Number to call
+            </label>
+            <input
+              type="tel"
+              inputMode="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="(617) 555-0123"
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+            />
+            <p className="mt-1 text-[13px] text-muted">
+              Prefilled from this client. Change it if you need a different
+              number.
+            </p>
+          </div>
+        )}
+
         <div className="mt-4">
-          <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+          <label className="block text-[13px] font-semibold uppercase tracking-wide text-muted mb-1">
             {kind === "call" ? "What the call is for" : "What this visit is for"}
           </label>
           <textarea
@@ -273,27 +297,27 @@ export default function ScheduleNextVisit({
             onChange={(e) => setTodo(e.target.value)}
             rows={2}
             placeholder="e.g. Install the new shutoff valve and check the upstairs sink"
-            className="w-full rounded-lg border border-border bg-surface p-3 text-[15px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/30"
+            className="w-full rounded-lg border border-border bg-surface p-3 text-[17px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/30"
           />
           {bringList && (
-            <p className="mt-1 text-xs text-muted">Bring: {bringList}</p>
+            <p className="mt-1 text-[13px] text-muted">Bring: {bringList}</p>
           )}
         </div>
 
         {/* Date and time on their own rows so neither gets cramped. */}
         <div className="mt-3">
-          <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+          <label className="block text-[13px] font-semibold uppercase tracking-wide text-muted mb-1">
             Date
           </label>
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="block w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+            className="block w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
           />
         </div>
         <div className="mt-3">
-          <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">
+          <label className="block text-[13px] font-semibold uppercase tracking-wide text-muted mb-1">
             Time
           </label>
           {/* A native select: iOS renders it as a scroll wheel, like the
@@ -301,7 +325,7 @@ export default function ScheduleNextVisit({
           <select
             value={time}
             onChange={(e) => setTime(e.target.value)}
-            className="block w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+            className="block w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
           >
             {TIME_OPTIONS.map((t) => (
               <option key={t.value} value={t.value}>
@@ -319,7 +343,7 @@ export default function ScheduleNextVisit({
           <button
             type="button"
             onClick={onDone}
-            className="text-xs font-medium text-muted hover:text-foreground transition-colors"
+            className="text-[13px] font-medium text-muted hover:text-foreground transition-colors"
           >
             Skip
           </button>

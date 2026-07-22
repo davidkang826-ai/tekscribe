@@ -13,9 +13,9 @@ export default function TermsPage() {
           </Link>
         </div>
       </header>
-      <main className="max-w-2xl mx-auto px-5 py-10 text-[15px] leading-relaxed text-foreground">
+      <main className="max-w-2xl mx-auto px-5 py-10 text-[17px] leading-relaxed text-foreground">
         <h1 className="text-2xl font-bold mb-1">Terms of Service</h1>
-        <p className="text-sm text-muted mb-8">Last updated: June 29, 2026</p>
+        <p className="text-[15px] text-muted mb-8">Last updated: June 29, 2026</p>
 
         <Section title="Acceptance">
           <p>
@@ -88,7 +88,7 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        <p className="mt-10 text-xs text-muted">
+        <p className="mt-10 text-[13px] text-muted">
           These terms are a starting point and are not legal advice; have them
           reviewed by a qualified attorney before broad commercial use.
         </p>

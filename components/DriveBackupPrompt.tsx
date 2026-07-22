@@ -60,10 +60,10 @@ export default function DriveBackupPrompt() {
             <GoogleDriveLogo size={22} />
           </div>
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-foreground">
+            <div className="text-[15px] font-semibold text-foreground">
               Back up your visits to Google Drive
             </div>
-            <p className="mt-0.5 text-[13px] leading-snug text-muted">
+            <p className="mt-0.5 text-[15px] leading-snug text-muted">
               Everything you upload and note, from photos to files to reports,
               is kept in your own Drive, organized in one folder per customer.
             </p>
@@ -72,14 +72,14 @@ export default function DriveBackupPrompt() {
         <div className="mt-3 flex items-center gap-2">
           <Link
             href="/settings"
-            className="flex-1 rounded-lg bg-brand px-4 py-2 text-center text-sm font-semibold text-white shadow-sm hover:bg-brand-600 transition"
+            className="flex-1 rounded-lg bg-brand px-4 py-2 text-center text-[15px] font-semibold text-white shadow-sm hover:bg-brand-600 transition"
           >
             Set it up
           </Link>
           <button
             type="button"
             onClick={snooze}
-            className="flex-1 rounded-lg px-4 py-2 text-sm font-medium text-muted ring-1 ring-border hover:bg-slate-50 hover:text-foreground transition"
+            className="flex-1 rounded-lg px-4 py-2 text-[15px] font-medium text-muted ring-1 ring-border hover:bg-slate-50 hover:text-foreground transition"
           >
             Not interested
           </button>
