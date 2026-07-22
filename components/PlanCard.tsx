@@ -9,12 +9,14 @@ export default function PlanCard({
   hasBilling,
   notesUsed,
   notesLimit,
+  promoUntil = null,
 }: {
   planName: string;
   planStatus: string | null;
   hasBilling: boolean;
   notesUsed: number;
   notesLimit: number | null;
+  promoUntil?: string | null;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,8 +36,11 @@ export default function PlanCard({
     }
   }
 
+  // "promo" gets a friendlier line of its own below, so keep it out of here.
   const statusLabel =
-    planStatus && planStatus !== "active" ? ` · ${planStatus}` : "";
+    planStatus && planStatus !== "active" && planStatus !== "promo"
+      ? ` · ${planStatus}`
+      : "";
   const left = notesLimit === null ? null : Math.max(0, notesLimit - notesUsed);
   const pct =
     notesLimit && notesLimit > 0
@@ -56,6 +61,12 @@ export default function PlanCard({
           )}
         </span>
       </div>
+
+      {promoUntil && (
+        <p className="mt-1 text-[15px] font-medium text-brand">
+          Pilot access until {promoUntil}
+        </p>
+      )}
 
       {notesLimit === null ? (
         <p className="mt-1 text-[15px] text-muted">Unlimited notes</p>

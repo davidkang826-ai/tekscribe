@@ -43,6 +43,8 @@ export async function POST(req: Request) {
             plan: s.metadata?.planId || "pro",
             plan_status: "active",
             plan_selected: true,
+            // A paid subscription supersedes any promo trial.
+            plan_expires_at: null,
             stripe_customer_id:
               typeof s.customer === "string" ? s.customer : s.customer?.id ?? null,
             stripe_subscription_id:

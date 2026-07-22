@@ -6,6 +6,7 @@ import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { syncNoteToDrive } from "@/lib/drive-sync";
 import { planById } from "@/lib/plans";
+import { resolvePlan, type PlanFields } from "@/lib/plan-resolve";
 import type { JobSummary, Attachment } from "@/lib/types";
 
 export type SaveResult = { error?: string; id?: string; limitReached?: boolean };
@@ -55,14 +56,26 @@ export async function saveNote(input: {
   if (!user) return { error: "You need to be signed in to save." };
 
   // Enforce the plan's monthly note cap (Free = 5). Only new notes count;
-  // updateNote edits an existing one in place and never hits this path. If the
-  // plan lookup fails (e.g. migration not run), the user is treated as Free.
-  const { data: planRow } = await supabase
+  // updateNote edits an existing one in place and never hits this path. A promo
+  // or paid plan lifts the cap; an expired promo falls back to Free.
+  let planFields: PlanFields | null = null;
+  const withExp = await supabase
     .from("profiles")
-    .select("plan")
+    .select("plan, plan_status, plan_expires_at")
     .eq("id", user.id)
     .maybeSingle();
-  const planId = (planRow?.plan as string | undefined) || "free";
+  if (!withExp.error) {
+    planFields = withExp.data;
+  } else {
+    // plan_expires_at column not there yet: fall back to what does exist.
+    const basic = await supabase
+      .from("profiles")
+      .select("plan, plan_status")
+      .eq("id", user.id)
+      .maybeSingle();
+    planFields = basic.data;
+  }
+  const planId = resolvePlan(planFields);
   const monthlyLimit = planById(planId)?.notesPerMonth ?? null;
   if (monthlyLimit !== null) {
     const { count } = await supabase

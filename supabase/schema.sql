@@ -282,6 +282,8 @@ alter table public.profiles add column if not exists display_name text;
 alter table public.profiles add column if not exists plan text not null default 'free';
 alter table public.profiles add column if not exists plan_status text;
 alter table public.profiles add column if not exists plan_selected boolean not null default false;
+-- When a promo/trial plan lapses back to Free. Null for Free and paid plans.
+alter table public.profiles add column if not exists plan_expires_at timestamptz;
 alter table public.profiles add column if not exists stripe_customer_id text;
 alter table public.profiles add column if not exists stripe_subscription_id text;
 
