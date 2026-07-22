@@ -1,23 +1,39 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+export type EventFields = {
+  customer: string;
+  kind: "visit" | "call";
+  address: string;
+  todo: string;
+};
 
 /**
- * A small mic button that records a voice memo, transcribes it, has the AI
- * tighten it into a short note, and hands the result back via onResult. Used
- * on the calendar event form so a tech can talk through a visit or call
- * instead of typing.
+ * Mic button for the calendar event form. The tech speaks a change and the AI
+ * applies it across the whole event (customer, on-site vs call, address, and
+ * the note), not just appending to the note. Records, transcribes, sends the
+ * transcript plus the event's current fields to /api/edit-event, and hands the
+ * updated fields back via onApply.
  */
-export default function VoiceToNote({
-  onResult,
+export default function EventVoiceEdit({
+  current,
+  onApply,
 }: {
-  onResult: (note: string) => void;
+  current: EventFields;
+  onApply: (fields: EventFields) => void;
 }) {
   const [state, setState] = useState<"idle" | "recording" | "busy">("idle");
   const [error, setError] = useState<string | null>(null);
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  // Read the freshest form values at process time, not whatever they were when
+  // recording started. Synced in an effect so we never write a ref during render.
+  const currentRef = useRef(current);
+  useEffect(() => {
+    currentRef.current = current;
+  }, [current]);
 
   async function process(blob: Blob) {
     setState("busy");
@@ -41,14 +57,26 @@ export default function VoiceToNote({
         setError("Didn't catch anything.");
         return;
       }
-      const sr = await fetch("/api/summarize-note", {
+      const er = await fetch("/api/edit-event", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript: said }),
+        body: JSON.stringify({ transcript: said, current: currentRef.current }),
         signal: AbortSignal.timeout(45000),
       });
-      const sd = await sr.json();
-      onResult(sr.ok && sd.note ? sd.note : said);
+      const ed = await er.json();
+      if (!er.ok) throw new Error(ed.error || "Couldn't apply that.");
+      onApply({
+        customer:
+          typeof ed.customer === "string"
+            ? ed.customer
+            : currentRef.current.customer,
+        kind: ed.kind === "call" ? "call" : "visit",
+        address:
+          typeof ed.address === "string"
+            ? ed.address
+            : currentRef.current.address,
+        todo: typeof ed.todo === "string" ? ed.todo : currentRef.current.todo,
+      });
     } catch (e) {
       const timedOut = e instanceof Error && e.name === "TimeoutError";
       setError(
@@ -108,10 +136,10 @@ export default function VoiceToNote({
         }`}
       >
         {state === "recording"
-          ? "Stop & add"
+          ? "Stop"
           : state === "busy"
-            ? "Writing it up…"
-            : "🎙 Say it instead"}
+            ? "Updating the event…"
+            : "🎙 Say it"}
       </button>
       {error && <span className="text-[13px] text-danger">{error}</span>}
     </div>
