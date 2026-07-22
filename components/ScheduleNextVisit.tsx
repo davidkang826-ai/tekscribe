@@ -123,6 +123,7 @@ export default function ScheduleNextVisit({
         todo: todo.trim(),
         kind,
         address: kind === "visit" ? address.trim() : "",
+        phone: kind === "call" ? phone.trim() : "",
         scheduledAtIso: start.toISOString(),
       });
     } catch {

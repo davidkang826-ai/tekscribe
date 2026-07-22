@@ -23,6 +23,7 @@ type Visit = {
   todo: string | null;
   kind?: string | null;
   address?: string | null;
+  phone?: string | null;
   scheduled_at: string;
 };
 
@@ -70,6 +71,7 @@ type FormState = {
   customer: string;
   kind: "visit" | "call";
   address: string;
+  phone: string;
   todo: string;
   date: string;
   time: string;
@@ -121,6 +123,17 @@ export default function CalendarView() {
       ...form,
       customer: c.name || form.customer,
       address: c.address || form.address,
+      phone: c.phone || form.phone,
+    });
+  }
+
+  /** Set the customer and, on an exact contact match, refresh the number to
+   *  call from that contact. The tech can still edit it afterward. */
+  function onFormCustomer(name: string) {
+    setForm((f) => {
+      if (!f) return f;
+      const c = contactFor(name);
+      return { ...f, customer: name, phone: c?.phone ?? f.phone };
     });
   }
 
@@ -145,7 +158,7 @@ export default function CalendarView() {
     let rows: Visit[] | null = null;
     const full = await supabase
       .from("scheduled_visits")
-      .select("id, note_id, customer_name, reason, todo, kind, address, scheduled_at")
+      .select("id, note_id, customer_name, reason, todo, kind, address, phone, scheduled_at")
       .gte("scheduled_at", from.toISOString())
       .lt("scheduled_at", to.toISOString())
       .order("scheduled_at", { ascending: true });
@@ -212,6 +225,7 @@ export default function CalendarView() {
       customer: "",
       kind: "visit",
       address: "",
+      phone: "",
       todo: "",
       date: ymd(selected),
       time: "08:00",
@@ -229,6 +243,8 @@ export default function CalendarView() {
       customer: v.customer_name ?? "",
       kind: v.kind === "call" ? "call" : "visit",
       address: v.address ?? "",
+      // The stored number, or the customer's contact number if none was saved.
+      phone: v.phone || contactFor(v.customer_name)?.phone || "",
       todo: v.todo ?? "",
       date: ymd(when),
       time: `${pad(when.getHours())}:${pad(mins % 60)}`,
@@ -245,6 +261,7 @@ export default function CalendarView() {
       todo: form.todo,
       kind: form.kind,
       address: form.kind === "visit" ? form.address : "",
+      phone: form.kind === "call" ? form.phone : "",
       scheduledAtIso: when.toISOString(),
     };
     const result = form.id
@@ -565,7 +582,10 @@ export default function CalendarView() {
                 customer: form.customer,
                 kind: form.kind,
                 address: form.address,
+                phone: form.phone,
                 todo: form.todo,
+                date: form.date,
+                time: form.time,
               }}
               onApply={(fields) =>
                 setForm((f) => (f ? { ...f, ...fields } : f))
@@ -573,8 +593,8 @@ export default function CalendarView() {
             />
             <p className="mt-1.5 text-[13px] text-muted">
               {form.id
-                ? "Say what's changed and I'll update the customer, address, and notes."
-                : "Say the details and I'll fill in the customer, address, and notes."}
+                ? "Say what's changed, the customer, date, time, address, number, or notes, and I'll update it."
+                : "Say the details and I'll fill in the customer, date, time, address, number, and notes."}
             </p>
           </div>
 
@@ -598,7 +618,7 @@ export default function CalendarView() {
                 type="text"
                 list="tt-cal-customers"
                 value={form.customer}
-                onChange={(e) => setForm({ ...form, customer: e.target.value })}
+                onChange={(e) => onFormCustomer(e.target.value)}
                 placeholder="Customer name"
                 className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
               />
@@ -642,6 +662,26 @@ export default function CalendarView() {
                   placeholder="123 Main St, Seattle, WA"
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
                 />
+              </div>
+            )}
+
+            {form.kind === "call" && (
+              <div>
+                <label className="block text-[13px] font-semibold uppercase tracking-wide text-muted mb-1">
+                  Number to call
+                </label>
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  placeholder="(206) 555-0123"
+                  className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                />
+                <p className="mt-1 text-[13px] text-muted">
+                  Pulled from this customer&apos;s contact. Edit it if you need
+                  a different number.
+                </p>
               </div>
             )}
 

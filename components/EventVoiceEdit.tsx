@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { dateInputValue } from "@/lib/times";
 
 export type EventFields = {
   customer: string;
   kind: "visit" | "call";
   address: string;
+  phone: string;
   todo: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM (24h)
 };
 
 /**
@@ -57,25 +61,35 @@ export default function EventVoiceEdit({
         setError("Didn't catch anything.");
         return;
       }
+      // Send today's date (in the tech's own timezone) so the AI can resolve
+      // "tomorrow", "next Tuesday", and the like.
+      const now = new Date();
+      const today = `${dateInputValue(now)} (${now.toLocaleDateString(undefined, {
+        weekday: "long",
+      })})`;
       const er = await fetch("/api/edit-event", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript: said, current: currentRef.current }),
+        body: JSON.stringify({
+          transcript: said,
+          current: currentRef.current,
+          today,
+        }),
         signal: AbortSignal.timeout(45000),
       });
       const ed = await er.json();
       if (!er.ok) throw new Error(ed.error || "Couldn't apply that.");
+      const cur = currentRef.current;
+      const s = (v: unknown, fallback: string) =>
+        typeof v === "string" ? v : fallback;
       onApply({
-        customer:
-          typeof ed.customer === "string"
-            ? ed.customer
-            : currentRef.current.customer,
+        customer: s(ed.customer, cur.customer),
         kind: ed.kind === "call" ? "call" : "visit",
-        address:
-          typeof ed.address === "string"
-            ? ed.address
-            : currentRef.current.address,
-        todo: typeof ed.todo === "string" ? ed.todo : currentRef.current.todo,
+        address: s(ed.address, cur.address),
+        phone: s(ed.phone, cur.phone),
+        todo: s(ed.todo, cur.todo),
+        date: s(ed.date, cur.date),
+        time: s(ed.time, cur.time),
       });
     } catch (e) {
       const timedOut = e instanceof Error && e.name === "TimeoutError";

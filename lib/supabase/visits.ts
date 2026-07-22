@@ -12,6 +12,7 @@ export async function scheduleVisit(input: {
   todo?: string;
   kind?: "visit" | "call";
   address?: string;
+  phone?: string;
   scheduledAtIso: string;
 }): Promise<{ error?: string }> {
   const scheduledAt = new Date(input.scheduledAtIso);
@@ -31,13 +32,14 @@ export async function scheduleVisit(input: {
     todo: input.todo?.trim() || null,
     kind: input.kind === "call" ? "call" : "visit",
     address: input.address?.trim() || null,
+    phone: input.phone?.trim() || null,
     scheduled_at: scheduledAt.toISOString(),
   };
   const { error } = await supabase.from("scheduled_visits").insert(row);
   if (!error) return {};
 
-  // Databases missing the newer kind/address columns still get the visit.
-  const { kind: _k, address: _a, ...legacy } = row;
+  // Databases missing the newer kind/address/phone columns still get the visit.
+  const { kind: _k, address: _a, phone: _p, ...legacy } = row;
   const retry = await supabase.from("scheduled_visits").insert(legacy);
   if (retry.error) return { error: retry.error.message };
   return {};
@@ -52,6 +54,7 @@ export async function updateVisit(input: {
   todo?: string;
   kind?: "visit" | "call";
   address?: string;
+  phone?: string;
   scheduledAtIso: string;
 }): Promise<{ error?: string }> {
   const scheduledAt = new Date(input.scheduledAtIso);
@@ -69,6 +72,7 @@ export async function updateVisit(input: {
     todo: input.todo?.trim() || null,
     kind: input.kind === "call" ? "call" : "visit",
     address: input.address?.trim() || null,
+    phone: input.phone?.trim() || null,
     scheduled_at: scheduledAt.toISOString(),
   };
   const { error } = await supabase
@@ -78,7 +82,7 @@ export async function updateVisit(input: {
     .eq("user_id", user.id);
   if (!error) return {};
 
-  const { kind: _k, address: _a, ...legacy } = row;
+  const { kind: _k, address: _a, phone: _p, ...legacy } = row;
   const retry = await supabase
     .from("scheduled_visits")
     .update(legacy)
