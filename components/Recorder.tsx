@@ -6,6 +6,7 @@ import SendToCustomer from "./SendToCustomer";
 import ScheduleNextVisit from "./ScheduleNextVisit";
 import { saveNote, updateNote } from "@/lib/supabase/notes";
 import { upsertCustomer } from "@/lib/supabase/customers";
+import ClientVoiceFill from "./ClientVoiceFill";
 import { contactsAvailable, pickContact } from "@/lib/contacts";
 import AddressInput from "./AddressInput";
 import { createClient } from "@/lib/supabase/client";
@@ -1289,15 +1290,33 @@ export default function Recorder({
                     <div className="text-[13px] font-semibold uppercase tracking-wide text-brand">
                       Client
                     </div>
-                    {canUseContacts && (
-                      <button
-                        type="button"
-                        onClick={fillFromContacts}
-                        className="tt-pop rounded-full bg-surface px-3 py-1 text-[13px] font-medium text-brand ring-1 ring-border hover:bg-white transition"
-                      >
-                        📇 From Contacts
-                      </button>
-                    )}
+                    {/* Three ways to fill this: type it, say it, or import. */}
+                    <div className="flex items-center gap-2">
+                      <ClientVoiceFill
+                        current={{
+                          name: customerName,
+                          phone: customerPhone,
+                          email: customerEmail,
+                          address: customerAddress,
+                        }}
+                        onApply={(f) => {
+                          setCustomerName(f.name);
+                          setCustomerPhone(f.phone);
+                          setCustomerEmail(f.email);
+                          setCustomerAddress(f.address);
+                          setNameMatches([]);
+                        }}
+                      />
+                      {canUseContacts && (
+                        <button
+                          type="button"
+                          onClick={fillFromContacts}
+                          className="tt-pop rounded-full bg-surface px-3 py-1 text-[13px] font-medium text-brand ring-1 ring-border hover:bg-white transition"
+                        >
+                          📇 From Contacts
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <input
