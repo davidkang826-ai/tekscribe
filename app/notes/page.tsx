@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 const NOTE_COLS =
-  "id, job_title, customer_name, transcript, summary, customer_email, created_at";
+  "id, job_title, customer_name, transcript, summary, customer_email, customer_phone, customer_address, created_at";
 
 export default async function NotesPage() {
   if (!isSupabaseConfigured) redirect("/");

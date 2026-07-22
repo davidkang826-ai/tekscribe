@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { scheduleVisit } from "@/lib/supabase/visits";
 import { TIME_OPTIONS, dateInputValue, combineDateTime } from "@/lib/times";
 import AddressInput from "./AddressInput";
+import EventVoiceEdit from "./EventVoiceEdit";
 
 type CalPref = "google" | "apple";
 const PREF_KEY = "tekscribe.calendar-pref";
@@ -46,7 +47,7 @@ function icsEscape(s: string): string {
  * saves the visit so the Daily Digest can list it. Entirely skippable.
  */
 export default function ScheduleNextVisit({
-  customerName,
+  customerName: customerNameProp,
   jobTitle,
   nextSteps,
   noteId,
@@ -64,6 +65,8 @@ export default function ScheduleNextVisit({
   noteId: string | null;
   onDone: () => void;
 }) {
+  // A state so the voice control can correct it ("actually this is for Bob").
+  const [customerName, setCustomerName] = useState(customerNameProp);
   const [date, setDate] = useState(defaultDate);
   const [time, setTime] = useState("08:00");
   const [busy, setBusy] = useState(false);
@@ -231,6 +234,35 @@ export default function ScheduleNextVisit({
         <h3 className="text-lg font-semibold text-foreground">
           Schedule the next visit?
         </h3>
+
+        {/* Say the plan and the AI fills the date, time, address, and details;
+            or set it by hand below. */}
+        <div className="mt-3 rounded-xl bg-brand-50/60 p-3">
+          <EventVoiceEdit
+            current={{
+              customer: customerName,
+              kind,
+              address,
+              phone,
+              todo,
+              date,
+              time,
+            }}
+            onApply={(f) => {
+              setCustomerName(f.customer);
+              setKind(f.kind);
+              setAddress(f.address);
+              setPhone(f.phone);
+              setTodo(f.todo);
+              setDate(f.date);
+              setTime(f.time);
+            }}
+          />
+          <p className="mt-1.5 text-[13px] text-muted">
+            Say when and what it&apos;s for, like &quot;next Tuesday at 3, finish
+            the upstairs sink.&quot;
+          </p>
+        </div>
 
         {/* On-site visit, or just a nudge to pick up the phone */}
         <div className="mt-4 inline-flex rounded-full bg-slate-100 p-1">
