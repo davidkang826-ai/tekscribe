@@ -11,7 +11,7 @@ import {
   getCalendarToken,
 } from "@/lib/supabase/visits";
 import { TIME_OPTIONS, dateInputValue, combineDateTime } from "@/lib/times";
-import VoiceToNote from "./VoiceToNote";
+import EventVoiceEdit from "./EventVoiceEdit";
 import AddressInput from "./AddressInput";
 import { contactsAvailable, pickContact } from "@/lib/contacts";
 
@@ -557,6 +557,27 @@ export default function CalendarView() {
             {form.id ? "Edit event" : "New event"}
           </h3>
 
+          {/* Talk your changes and the AI updates the whole event, customer,
+              on-site vs call, address, and the note, not just one field. */}
+          <div className="mt-3 rounded-xl bg-brand-50/60 p-3">
+            <EventVoiceEdit
+              current={{
+                customer: form.customer,
+                kind: form.kind,
+                address: form.address,
+                todo: form.todo,
+              }}
+              onApply={(fields) =>
+                setForm((f) => (f ? { ...f, ...fields } : f))
+              }
+            />
+            <p className="mt-1.5 text-[13px] text-muted">
+              {form.id
+                ? "Say what's changed and I'll update the customer, address, and notes."
+                : "Say the details and I'll fill in the customer, address, and notes."}
+            </p>
+          </div>
+
           <div className="mt-3 space-y-3">
             <div>
               <div className="mb-1 flex items-center justify-between gap-2">
@@ -635,19 +656,6 @@ export default function CalendarView() {
                 placeholder="What this visit or call is for"
                 className="w-full rounded-lg border border-border bg-surface p-3 text-[17px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/30"
               />
-              {/* Talk it through instead of typing; the AI tightens it up and
-                  appends it to whatever's already in the notes. */}
-              <div className="mt-2">
-                <VoiceToNote
-                  onResult={(note) =>
-                    setForm((f) =>
-                      f
-                        ? { ...f, todo: f.todo ? `${f.todo.trim()} ${note}` : note }
-                        : f
-                    )
-                  }
-                />
-              </div>
             </div>
 
             {/* Date and time on their own rows so neither gets cramped. */}
