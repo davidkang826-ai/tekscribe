@@ -6,7 +6,7 @@ import SendToCustomer from "./SendToCustomer";
 import ScheduleNextVisit from "./ScheduleNextVisit";
 import { saveNote, updateNote } from "@/lib/supabase/notes";
 import { upsertCustomer } from "@/lib/supabase/customers";
-import ClientVoiceFill from "./ClientVoiceFill";
+import FieldMic from "./FieldMic";
 import { contactsAvailable, pickContact } from "@/lib/contacts";
 import AddressInput from "./AddressInput";
 import { createClient } from "@/lib/supabase/client";
@@ -950,7 +950,9 @@ export default function Recorder({
             {canSave && firstName ? `Hi ${firstName}.` : "Ready when you are."}
           </h1>
           <p className="mt-2 text-muted max-w-lg mx-auto">
-            Tap the mic and tell me about your visit.
+            {isRecording || isPaused
+              ? "Tap the mic to pause. Press and hold it to end."
+              : "Tap the mic and tell me about your visit."}
           </p>
         </div>
       )}
@@ -1037,9 +1039,11 @@ export default function Recorder({
                 <span className="font-mono text-lg tabular-nums text-brand">
                   {formatTime(elapsed)}
                 </span>
-                <div className="text-[13px] text-muted mt-0.5">
-                  {holding ? "Keep holding to finish…" : statusText[phase]}
-                </div>
+                {holding && (
+                  <div className="text-[13px] text-muted mt-0.5">
+                    Keep holding to finish…
+                  </div>
+                )}
               </>
             ) : (
               <span className="text-muted text-[15px]">{statusText[phase]}</span>
@@ -1290,53 +1294,33 @@ export default function Recorder({
                     <div className="text-[13px] font-semibold uppercase tracking-wide text-brand">
                       Client
                     </div>
-                    {/* Three ways to fill this: type it, say it, or import. */}
-                    <div className="flex items-center gap-2">
-                      <ClientVoiceFill
-                        current={{
-                          name: customerName,
-                          phone: customerPhone,
-                          email: customerEmail,
-                          address: customerAddress,
-                        }}
-                        onApply={(f) => {
-                          // Spoken values win; for anything not said, pull it
-                          // from the matching saved contact so speaking a known
-                          // client repopulates their whole card.
-                          const match = customers.find(
-                            (c) =>
-                              c.name.trim().toLowerCase() ===
-                              f.name.trim().toLowerCase()
-                          );
-                          setCustomerName(f.name);
-                          setCustomerPhone(f.phone || match?.phone || "");
-                          setCustomerEmail(f.email || match?.email || "");
-                          setCustomerAddress(
-                            f.address || match?.address || ""
-                          );
-                          setNameMatches([]);
-                        }}
-                      />
-                      {canUseContacts && (
-                        <button
-                          type="button"
-                          onClick={fillFromContacts}
-                          className="tt-pop rounded-full bg-surface px-3 py-1 text-[13px] font-medium text-brand ring-1 ring-border hover:bg-white transition"
-                        >
-                          📇 From Contacts
-                        </button>
-                      )}
-                    </div>
+                    {/* Type it, tap a line's mic to say it, or import. */}
+                    {canUseContacts && (
+                      <button
+                        type="button"
+                        onClick={fillFromContacts}
+                        className="tt-pop rounded-full bg-surface px-3 py-1 text-[13px] font-medium text-brand ring-1 ring-border hover:bg-white transition"
+                      >
+                        📇 From Contacts
+                      </button>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    <input
-                      type="text"
-                      list="tt-customers"
-                      value={customerName}
-                      onChange={(e) => onCustomerName(e.target.value)}
-                      placeholder="Client name"
-                      className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] font-medium focus:outline-none focus:ring-2 focus:ring-brand/30"
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        list="tt-customers"
+                        value={customerName}
+                        onChange={(e) => onCustomerName(e.target.value)}
+                        placeholder="Client name"
+                        className="flex-1 min-w-0 rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] font-medium focus:outline-none focus:ring-2 focus:ring-brand/30"
+                      />
+                      <FieldMic
+                        field="name"
+                        label="client name"
+                        onResult={(v) => onCustomerName(v)}
+                      />
+                    </div>
                     <datalist id="tt-customers">
                       {uniqueNames.map((n) => (
                         <option key={n} value={n} />
@@ -1363,29 +1347,52 @@ export default function Recorder({
                       </div>
                     )}
 
-                    <input
-                      type="tel"
-                      inputMode="tel"
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      placeholder="Phone"
-                      className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-                    />
-                    <input
-                      type="email"
-                      inputMode="email"
-                      autoCapitalize="off"
-                      autoCorrect="off"
-                      value={customerEmail}
-                      onChange={(e) => setCustomerEmail(e.target.value)}
-                      placeholder="Email"
-                      className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-                    />
-                    <AddressInput
-                      value={customerAddress}
-                      onChange={setCustomerAddress}
-                      className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="tel"
+                        inputMode="tel"
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(e.target.value)}
+                        placeholder="Phone"
+                        className="flex-1 min-w-0 rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                      />
+                      <FieldMic
+                        field="phone"
+                        label="phone number"
+                        onResult={setCustomerPhone}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="email"
+                        inputMode="email"
+                        autoCapitalize="off"
+                        autoCorrect="off"
+                        value={customerEmail}
+                        onChange={(e) => setCustomerEmail(e.target.value)}
+                        placeholder="Email"
+                        className="flex-1 min-w-0 rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                      />
+                      <FieldMic
+                        field="email"
+                        label="email"
+                        onResult={setCustomerEmail}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <AddressInput
+                          value={customerAddress}
+                          onChange={setCustomerAddress}
+                          className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[17px] focus:outline-none focus:ring-2 focus:ring-brand/30"
+                        />
+                      </div>
+                      <FieldMic
+                        field="address"
+                        label="address"
+                        onResult={setCustomerAddress}
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -1580,9 +1587,9 @@ export default function Recorder({
                       <div className="mt-4">
                         <button
                           onClick={() => setReviewStep("confirm")}
-                          className="tt-pop text-[13px] font-medium text-muted hover:text-foreground transition-colors"
+                          className="tt-pop inline-flex items-center gap-1 text-[13px] font-medium text-muted hover:text-foreground transition-colors"
                         >
-                          Back to the note
+                          <span aria-hidden="true">‹</span> Back to the note
                         </button>
                       </div>
                       {archiveState === "saved" && canSave && (

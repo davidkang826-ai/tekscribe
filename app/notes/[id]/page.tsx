@@ -4,6 +4,7 @@ import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import SendToCustomer from "@/components/SendToCustomer";
 import { GoogleDriveLogo } from "@/components/GoogleDriveLogo";
+import { formatPhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { JobSummary, Attachment } from "@/lib/types";
@@ -137,7 +138,7 @@ export default async function NoteDetailPage(props: {
                   href={`tel:${note.customer_phone.replace(/[^\d+]/g, "")}`}
                   className="block font-medium text-brand hover:underline"
                 >
-                  📞 {note.customer_phone}
+                  📞 {formatPhone(note.customer_phone)}
                 </a>
               )}
               {note.customer_email && (
@@ -218,6 +219,9 @@ export default async function NoteDetailPage(props: {
 
         {summary && (
           <div className="mt-5 rounded-2xl border border-border bg-surface p-5 shadow-sm">
+            <h2 className="text-[15px] font-bold tracking-tight text-foreground mb-3">
+              Visit notes
+            </h2>
             <Section title="Work done" items={summary.workDone} />
             <Section
               title="Parts & materials"
@@ -226,18 +230,9 @@ export default async function NoteDetailPage(props: {
             />
             <Section title="Customer requests" items={summary.customerRequests} />
             <Section title="Next steps" items={summary.nextSteps} />
-            {summary.customerMessage && (
-              <div className="mt-4 rounded-xl bg-brand-50 p-4">
-                <div className="text-[13px] font-semibold uppercase tracking-wide text-brand mb-1.5">
-                  Customer message
-                </div>
-                <p className="text-[17px] leading-relaxed text-foreground">
-                  {summary.customerMessage}
-                </p>
-              </div>
-            )}
 
-            {/* Re-send this job to a customer */}
+            {/* The customer message isn't shown separately here; the send
+                section below previews the exact text that goes out. */}
             <SendToCustomer
               summary={summary}
               defaultReplyTo={replyTo}

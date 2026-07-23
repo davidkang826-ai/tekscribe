@@ -28,32 +28,14 @@ function contactLine(contact?: Contact): string {
   return "";
 }
 
-/** Next steps a customer should see: everything except the tech's own
- *  shopping list ("Buy: …" items stay internal). */
-function customerNextSteps(summary: JobSummary): string[] {
-  return summary.nextSteps.filter((s) => !/^buy\s*:/i.test(s.trim()));
-}
-
-/** Bullet items woven into one readable paragraph. */
-function paragraph(items: string[]): string {
-  return items.map((s) => s.trim().replace(/\.+$/, "")).join(". ") + ".";
-}
-
 function buildEmailBody(
   summary: JobSummary,
   opts: { signoffName?: string; contact?: Contact } = {}
 ): string {
-  // The AI message already acknowledges the customer's requests in flowing
-  // sentences, so there's no separate "you asked us to note" bullet list.
+  // The AI message already summarizes the work and next steps in flowing
+  // prose, so we don't repeat them as separate labeled sections.
   const lines: string[] = [];
   if (summary.customerMessage) lines.push(summary.customerMessage, "");
-  if (summary.workDone.length) {
-    lines.push(`What we did: ${paragraph(summary.workDone)}`, "");
-  }
-  const next = customerNextSteps(summary);
-  if (next.length) {
-    lines.push(`Next steps: ${paragraph(next)}`, "");
-  }
   const reach = contactLine(opts.contact);
   if (reach) lines.push(reach, "");
   lines.push("Thank you for allowing me to serve you!");
@@ -64,10 +46,6 @@ function buildEmailBody(
 function buildSmsBody(summary: JobSummary, contact?: Contact): string {
   const lines: string[] = [];
   if (summary.customerMessage) lines.push(summary.customerMessage);
-  const next = customerNextSteps(summary);
-  if (next.length) {
-    lines.push("", `Next steps: ${paragraph(next)}`);
-  }
   const reach = contactLine(contact);
   if (reach) lines.push("", reach);
   lines.push("", "Thank you for allowing me to serve you!");
@@ -212,7 +190,7 @@ export default function SendToCustomer({
   return (
     <div className="mt-5 border-t border-border pt-5">
       <div className="text-[13px] font-semibold uppercase tracking-wide text-brand mb-3">
-        Send to customer
+        Send update to customer
       </div>
 
       <div className="inline-flex rounded-lg bg-slate-100 p-1 mb-3">

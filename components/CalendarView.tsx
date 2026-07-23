@@ -14,6 +14,12 @@ import { TIME_OPTIONS, dateInputValue, combineDateTime } from "@/lib/times";
 import EventVoiceEdit from "./EventVoiceEdit";
 import AddressInput from "./AddressInput";
 import { contactsAvailable, pickContact } from "@/lib/contacts";
+import { formatPhone } from "@/lib/phone";
+import {
+  openGoogleCalendar,
+  openAppleCalendar,
+  type CalEvent,
+} from "@/lib/calendar-links";
 
 type Visit = {
   id: string;
@@ -93,6 +99,12 @@ export default function CalendarView() {
   const [feedUrl, setFeedUrl] = useState<string | null>(null);
   const [syncBusy, setSyncBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  // After saving an event, offer to also drop it on the phone's calendar.
+  const [postSave, setPostSave] = useState<{
+    event: CalEvent;
+    uid: string;
+    pref: "google" | "apple";
+  } | null>(null);
 
   const [canUseContacts, setCanUseContacts] = useState(false);
   useEffect(() => setCanUseContacts(contactsAvailable()), []);
@@ -115,6 +127,13 @@ export default function CalendarView() {
       syncRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [syncOpen]);
+
+  const postSaveRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (postSave) {
+      postSaveRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [postSave]);
 
   async function fillFormFromContacts() {
     const c = await pickContact();
@@ -272,10 +291,50 @@ export default function CalendarView() {
       setError(result.error);
       return;
     }
+
+    // Offer to also put it on the phone's calendar.
+    const isCall = form.kind === "call";
+    const end = new Date(when.getTime() + (isCall ? 15 : 60) * 60 * 1000);
+    const who = form.customer.trim() || "visit";
+    const descLines: string[] = [];
+    if (form.customer.trim()) descLines.push(`Client: ${form.customer.trim()}`);
+    if (isCall && form.phone.trim())
+      descLines.push(`Call: ${formatPhone(form.phone)}`);
+    if (!isCall && form.address.trim())
+      descLines.push(`Address: ${form.address.trim()}`);
+    if (form.todo.trim()) descLines.push(`Notes: ${form.todo.trim()}`);
+    const event: CalEvent = {
+      start: when,
+      end,
+      title: isCall ? `Call ${who}` : `Next visit: ${who}`,
+      description: descLines.join("\n"),
+      location: isCall ? "" : form.address.trim(),
+    };
+    let pref: "google" | "apple" = "google";
+    try {
+      if (localStorage.getItem("tekscribe.calendar-pref") === "apple")
+        pref = "apple";
+    } catch {
+      // default google
+    }
+    setPostSave({ event, uid: `cal-${when.getTime()}@tekscribe`, pref });
+
     setForm(null);
     setSelected(when);
     setMonth(new Date(when.getFullYear(), when.getMonth(), 1));
     loadMonth();
+  }
+
+  function addPostSaveTo(which: "google" | "apple") {
+    if (!postSave) return;
+    try {
+      localStorage.setItem("tekscribe.calendar-pref", which);
+    } catch {
+      // fine
+    }
+    if (which === "google") openGoogleCalendar(postSave.event);
+    else openAppleCalendar(postSave.event, postSave.uid);
+    setPostSave(null);
   }
 
   async function remove(id: string) {
@@ -401,6 +460,7 @@ export default function CalendarView() {
             const contact = contactFor(v.customer_name);
             const isCall = v.kind === "call";
             const address = v.address || contact?.address || null;
+            const phone = v.phone || contact?.phone || null;
             return (
               <li
                 key={v.id}
@@ -430,12 +490,12 @@ export default function CalendarView() {
                 </div>
 
                 {/* The one direct action: phone for a call, map for a visit */}
-                {isCall && contact?.phone && (
+                {isCall && phone && (
                   <a
-                    href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}
+                    href={`tel:${phone.replace(/[^\d+]/g, "")}`}
                     className="mt-1.5 block text-[15px] font-medium text-brand hover:underline"
                   >
-                    📞 {contact.phone}
+                    📞 {formatPhone(phone)}
                   </a>
                 )}
                 {!isCall && address && (
@@ -563,6 +623,51 @@ export default function CalendarView() {
           </div>
         )}
       </div>
+
+      {/* After saving, offer to add it to the phone's calendar */}
+      {postSave && (
+        <div
+          ref={postSaveRef}
+          className="mt-4 scroll-mt-20 rounded-2xl border border-brand/30 bg-surface p-4 shadow-sm"
+        >
+          <h3 className="text-[15px] font-semibold text-foreground">
+            Saved. Add it to your calendar?
+          </h3>
+          <p className="mt-1 text-[13px] text-muted">
+            Drop this on your phone&apos;s calendar so you get a reminder.
+          </p>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            {(postSave.pref === "apple"
+              ? (["apple", "google"] as const)
+              : (["google", "apple"] as const)
+            ).map((which, i) => (
+              <button
+                key={which}
+                type="button"
+                onClick={() => addPostSaveTo(which)}
+                className={`flex-1 rounded-xl px-4 py-3 text-[15px] font-semibold shadow-sm transition ${
+                  i === 0
+                    ? "bg-brand text-white hover:bg-brand-600"
+                    : "bg-surface text-foreground ring-1 ring-border hover:bg-slate-50"
+                }`}
+              >
+                {which === "google"
+                  ? "Add to Google Calendar"
+                  : "Add to Apple Calendar"}
+              </button>
+            ))}
+          </div>
+          <div className="mt-3 text-center">
+            <button
+              type="button"
+              onClick={() => setPostSave(null)}
+              className="text-[13px] font-medium text-muted hover:text-foreground transition"
+            >
+              Not now
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Create / edit */}
       {form && (

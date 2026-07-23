@@ -182,14 +182,17 @@ export default function ScheduleNextVisit({
       "END:VEVENT",
       "END:VCALENDAR",
     ].join("\r\n");
-    const url = URL.createObjectURL(
-      new Blob([ics], { type: "text/calendar" })
-    );
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "next-visit.ics";
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    // Opening the .ics as a data URL lets iOS pop its "Add to Calendar" sheet
+    // (a silent file download often doesn't). Fall back to a download if the
+    // browser blocks the new tab.
+    const dataUri = `data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`;
+    const opened = window.open(dataUri, "_blank");
+    if (!opened) {
+      const a = document.createElement("a");
+      a.href = dataUri;
+      a.download = "next-visit.ics";
+      a.click();
+    }
     await saveToDigest(start);
     setBusy(false);
     onDone();
