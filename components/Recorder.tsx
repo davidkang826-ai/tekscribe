@@ -1300,10 +1300,20 @@ export default function Recorder({
                           address: customerAddress,
                         }}
                         onApply={(f) => {
+                          // Spoken values win; for anything not said, pull it
+                          // from the matching saved contact so speaking a known
+                          // client repopulates their whole card.
+                          const match = customers.find(
+                            (c) =>
+                              c.name.trim().toLowerCase() ===
+                              f.name.trim().toLowerCase()
+                          );
                           setCustomerName(f.name);
-                          setCustomerPhone(f.phone);
-                          setCustomerEmail(f.email);
-                          setCustomerAddress(f.address);
+                          setCustomerPhone(f.phone || match?.phone || "");
+                          setCustomerEmail(f.email || match?.email || "");
+                          setCustomerAddress(
+                            f.address || match?.address || ""
+                          );
                           setNameMatches([]);
                         }}
                       />
