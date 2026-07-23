@@ -1592,11 +1592,6 @@ export default function Recorder({
                           <span aria-hidden="true">‹</span> Back to the note
                         </button>
                       </div>
-                      {archiveState === "saved" && canSave && (
-                        <p className="mt-2 text-center text-[15px] font-medium text-success">
-                          ✓ Saved to your archive
-                        </p>
-                      )}
                       <SendToCustomer
                         summary={summary}
                         defaultReplyTo={replyTo}
