@@ -292,7 +292,7 @@ export default function ScheduleNextVisit({
             className="w-full rounded-lg border border-border bg-surface p-3 text-[17px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/30"
           />
           {bringList && (
-            <p className="mt-2 text-[15px] font-semibold text-success">
+            <p className="mt-2 text-[13px] font-medium text-muted">
               🧰 Bring: {bringList}
             </p>
           )}
