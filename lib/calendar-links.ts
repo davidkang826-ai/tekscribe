@@ -14,14 +14,6 @@ function calStamp(d: Date): string {
   return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 }
 
-function icsEscape(s: string): string {
-  return (s ?? "")
-    .replace(/\\/g, "\\\\")
-    .replace(/;/g, "\\;")
-    .replace(/,/g, "\\,")
-    .replace(/\r?\n/g, "\\n");
-}
-
 /** Open Google Calendar with the event prefilled, in a new tab. */
 export function openGoogleCalendar(e: CalEvent): void {
   const p = new URLSearchParams({
@@ -34,31 +26,17 @@ export function openGoogleCalendar(e: CalEvent): void {
   window.open(`https://calendar.google.com/calendar/render?${p}`, "_blank");
 }
 
-/** Hand the event to Apple Calendar as an .ics. Opening it as a data URL lets
- *  iOS show its "Add to Calendar" sheet; falls back to a download if the
- *  browser blocks the new tab. */
+/** Hand the event to Apple Calendar via a hosted .ics link. iOS opens a real
+ *  text/calendar URL straight into its "Add Event" sheet, which a data URL or
+ *  blob download inside a web view often won't. */
 export function openAppleCalendar(e: CalEvent, uid: string): void {
-  const ics = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//TekScribe//EN",
-    "BEGIN:VEVENT",
-    `UID:${uid}`,
-    `DTSTAMP:${calStamp(new Date())}`,
-    `DTSTART:${calStamp(e.start)}`,
-    `DTEND:${calStamp(e.end)}`,
-    `SUMMARY:${icsEscape(e.title)}`,
-    ...(e.location ? [`LOCATION:${icsEscape(e.location)}`] : []),
-    `DESCRIPTION:${icsEscape(e.description)}`,
-    "END:VEVENT",
-    "END:VCALENDAR",
-  ].join("\r\n");
-  const dataUri = `data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`;
-  const opened = window.open(dataUri, "_blank");
-  if (!opened) {
-    const a = document.createElement("a");
-    a.href = dataUri;
-    a.download = "visit.ics";
-    a.click();
-  }
+  const p = new URLSearchParams({
+    title: e.title,
+    start: e.start.toISOString(),
+    end: e.end.toISOString(),
+    desc: e.description,
+    uid,
+  });
+  if (e.location) p.set("loc", e.location);
+  window.open(`/api/ics?${p.toString()}`, "_blank");
 }

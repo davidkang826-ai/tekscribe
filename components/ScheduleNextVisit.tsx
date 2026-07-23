@@ -5,6 +5,7 @@ import { scheduleVisit } from "@/lib/supabase/visits";
 import { TIME_OPTIONS, dateInputValue, combineDateTime } from "@/lib/times";
 import AddressInput from "./AddressInput";
 import EventVoiceEdit from "./EventVoiceEdit";
+import { openGoogleCalendar, openAppleCalendar } from "@/lib/calendar-links";
 
 type CalPref = "google" | "apple";
 const PREF_KEY = "tekscribe.calendar-pref";
@@ -23,22 +24,6 @@ function defaultDate(): string {
   const d = new Date();
   d.setDate(d.getDate() + 1);
   return dateInputValue(d);
-}
-
-/** 20260719T150000Z — the compact UTC format calendars want. */
-function calStamp(d: Date): string {
-  return d
-    .toISOString()
-    .replace(/[-:]/g, "")
-    .replace(/\.\d{3}/, "");
-}
-
-function icsEscape(s: string): string {
-  return s
-    .replace(/\\/g, "\\\\")
-    .replace(/;/g, "\\;")
-    .replace(/,/g, "\\,")
-    .replace(/\r?\n/g, "\\n");
 }
 
 /**
@@ -143,16 +128,9 @@ export default function ScheduleNextVisit({
     } catch {
       // fine
     }
-    const { start, end, title, description, location } = eventPieces();
-    const p = new URLSearchParams({
-      action: "TEMPLATE",
-      text: title,
-      dates: `${calStamp(start)}/${calStamp(end)}`,
-      details: description,
-    });
-    if (location) p.set("location", location);
-    window.open(`https://calendar.google.com/calendar/render?${p}`, "_blank");
-    await saveToDigest(start);
+    const pieces = eventPieces();
+    openGoogleCalendar(pieces);
+    await saveToDigest(pieces.start);
     setBusy(false);
     onDone();
   }
@@ -166,34 +144,12 @@ export default function ScheduleNextVisit({
     } catch {
       // fine
     }
-    const { start, end, title, description, location } = eventPieces();
-    const ics = [
-      "BEGIN:VCALENDAR",
-      "VERSION:2.0",
-      "PRODID:-//TekScribe//EN",
-      "BEGIN:VEVENT",
-      `UID:${noteId || "visit"}-${start.getTime()}@tekscribe`,
-      `DTSTAMP:${calStamp(new Date())}`,
-      `DTSTART:${calStamp(start)}`,
-      `DTEND:${calStamp(end)}`,
-      `SUMMARY:${icsEscape(title)}`,
-      ...(location ? [`LOCATION:${icsEscape(location)}`] : []),
-      `DESCRIPTION:${icsEscape(description)}`,
-      "END:VEVENT",
-      "END:VCALENDAR",
-    ].join("\r\n");
-    // Opening the .ics as a data URL lets iOS pop its "Add to Calendar" sheet
-    // (a silent file download often doesn't). Fall back to a download if the
-    // browser blocks the new tab.
-    const dataUri = `data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`;
-    const opened = window.open(dataUri, "_blank");
-    if (!opened) {
-      const a = document.createElement("a");
-      a.href = dataUri;
-      a.download = "next-visit.ics";
-      a.click();
-    }
-    await saveToDigest(start);
+    const pieces = eventPieces();
+    openAppleCalendar(
+      pieces,
+      `${noteId || "visit"}-${pieces.start.getTime()}@tekscribe`
+    );
+    await saveToDigest(pieces.start);
     setBusy(false);
     onDone();
   }
@@ -331,12 +287,14 @@ export default function ScheduleNextVisit({
           <textarea
             value={todo}
             onChange={(e) => setTodo(e.target.value)}
-            rows={2}
+            rows={4}
             placeholder="e.g. Install the new shutoff valve and check the upstairs sink"
             className="w-full rounded-lg border border-border bg-surface p-3 text-[17px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/30"
           />
           {bringList && (
-            <p className="mt-1 text-[13px] text-muted">Bring: {bringList}</p>
+            <p className="mt-2 text-[15px] font-semibold text-success">
+              🧰 Bring: {bringList}
+            </p>
           )}
         </div>
 
