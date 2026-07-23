@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LogoMark } from "./Logo";
 import { createClient } from "@/lib/supabase/client";
+import { formatPhone } from "@/lib/phone";
 import type { JobSummary } from "@/lib/types";
 
 type Visit = {
@@ -228,7 +229,7 @@ export default function DigestList() {
                 href={`tel:${v.phone.replace(/[^\d+]/g, "")}`}
                 className="mt-1.5 inline-flex items-center gap-1.5 text-[15px] font-medium text-brand hover:underline"
               >
-                📞 {v.phone}
+                📞 {formatPhone(v.phone)}
               </a>
             )}
             {!isCall && v.addr && (
