@@ -39,6 +39,8 @@ export default function ScheduleNextVisit({
   customerAddress = "",
   customerPhone = "",
   customerRequests = [],
+  suggestedDate = "",
+  suggestedTime = "",
   onDone,
 }: {
   customerName: string;
@@ -47,13 +49,17 @@ export default function ScheduleNextVisit({
   jobTitle: string;
   nextSteps: string[];
   customerRequests?: string[];
+  suggestedDate?: string;
+  suggestedTime?: string;
   noteId: string | null;
   onDone: () => void;
 }) {
   // A state so the voice control can correct it ("actually this is for Bob").
   const [customerName, setCustomerName] = useState(customerNameProp);
-  const [date, setDate] = useState(defaultDate);
-  const [time, setTime] = useState("08:00");
+  // Prefill from a follow-up day/time the tech named in the note, else default
+  // to tomorrow at 8am.
+  const [date, setDate] = useState(() => suggestedDate || defaultDate());
+  const [time, setTime] = useState(() => suggestedTime || "08:00");
   const [pref, setPref] = useState<CalPref | null>(readPref);
   // On-site visit, or just a reminder to call the customer.
   const [kind, setKind] = useState<"visit" | "call">("visit");

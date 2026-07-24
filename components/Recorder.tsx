@@ -162,6 +162,11 @@ export default function Recorder({
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [nameMatches, setNameMatches] = useState<Customer[]>([]);
+  // A follow-up day/time the tech named in the note, to prefill the step-4 date.
+  const [suggestedVisit, setSuggestedVisit] = useState<{
+    date: string;
+    time: string;
+  } | null>(null);
   // Native-only: offer to pull the client from the phone's address book.
   const [canUseContacts, setCanUseContacts] = useState(false);
   useEffect(() => setCanUseContacts(contactsAvailable()), []);
@@ -245,6 +250,7 @@ export default function Recorder({
     setCustomerPhone("");
     setCustomerAddress("");
     setNameMatches([]);
+    setSuggestedVisit(null);
     setAttachments([]);
     setViewing(null);
     setPendingDelete(null);
@@ -556,10 +562,17 @@ export default function Recorder({
     setError(null);
     setPhase("summarizing");
     try {
+      // Today, in the tech's own timezone, so the AI can resolve a spoken
+      // "next Friday at 5" into a real date for the schedule step.
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
+        now.getDate()
+      )} (${now.toLocaleDateString(undefined, { weekday: "long" })})`;
       const res = await fetch("/api/summarize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript: text, techName }),
+        body: JSON.stringify({ transcript: text, techName, today }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Summarization failed.");
@@ -567,6 +580,14 @@ export default function Recorder({
       setSummary(sum);
       setEditing(false);
       setMessageDirty(false);
+
+      // A specific follow-up time the tech named, to prefill step 4.
+      const nv = data.nextVisit as { date?: string; time?: string } | undefined;
+      setSuggestedVisit(
+        nv && (nv.date || nv.time)
+          ? { date: nv.date || "", time: nv.time || "" }
+          : null
+      );
 
       // Prefill the Client fields from any contact details the tech mentioned
       // in the note, without overwriting anything already filled in.
@@ -1621,6 +1642,8 @@ export default function Recorder({
                       nextSteps={summary.nextSteps}
                       customerRequests={summary.customerRequests}
                       noteId={noteId}
+                      suggestedDate={suggestedVisit?.date}
+                      suggestedTime={suggestedVisit?.time}
                       onDone={() => setReviewStep("done")}
                     />
                   )}
