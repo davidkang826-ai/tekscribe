@@ -5,7 +5,7 @@ import { scheduleVisit } from "@/lib/supabase/visits";
 import { TIME_OPTIONS, dateInputValue, combineDateTime } from "@/lib/times";
 import AddressInput from "./AddressInput";
 import EventVoiceEdit from "./EventVoiceEdit";
-import { openGoogleCalendar, openAppleCalendar } from "@/lib/calendar-links";
+import { googleCalendarHref, appleIcsHref } from "@/lib/calendar-links";
 
 type CalPref = "google" | "apple";
 const PREF_KEY = "tekscribe.calendar-pref";
@@ -54,7 +54,6 @@ export default function ScheduleNextVisit({
   const [customerName, setCustomerName] = useState(customerNameProp);
   const [date, setDate] = useState(defaultDate);
   const [time, setTime] = useState("08:00");
-  const [busy, setBusy] = useState(false);
   const [pref, setPref] = useState<CalPref | null>(readPref);
   // On-site visit, or just a reminder to call the customer.
   const [kind, setKind] = useState<"visit" | "call">("visit");
@@ -119,72 +118,56 @@ export default function ScheduleNextVisit({
     }
   }
 
-  async function addGoogle() {
-    if (busy) return;
-    setBusy(true);
-    setPref("google");
+  // Real links, not window.open: an installed home-screen app often blocks
+  // window.open, but a tapped link opens Google Calendar (or, for Apple, the
+  // native Add Event sheet right over the app). We record the choice, save the
+  // digest entry in the background, and move to the "done" screen a beat later
+  // so the calendar hand-off fires first and the app is already on the finish
+  // page when the tech comes back.
+  const pieces = eventPieces();
+  const eventUid = `${noteId || "visit"}-${pieces.start.getTime()}@tekscribe`;
+  function pick(which: CalPref) {
+    setPref(which);
     try {
-      localStorage.setItem(PREF_KEY, "google");
+      localStorage.setItem(PREF_KEY, which);
     } catch {
       // fine
     }
-    const pieces = eventPieces();
-    openGoogleCalendar(pieces);
-    await saveToDigest(pieces.start);
-    setBusy(false);
-    onDone();
-  }
-
-  async function addApple() {
-    if (busy) return;
-    setBusy(true);
-    setPref("apple");
-    try {
-      localStorage.setItem(PREF_KEY, "apple");
-    } catch {
-      // fine
-    }
-    const pieces = eventPieces();
-    openAppleCalendar(
-      pieces,
-      `${noteId || "visit"}-${pieces.start.getTime()}@tekscribe`
-    );
-    await saveToDigest(pieces.start);
-    setBusy(false);
-    onDone();
+    void saveToDigest(pieces.start);
+    setTimeout(onDone, 400);
   }
 
   // Show the calendar they used last time first.
   const googleFirst = pref !== "apple";
   const googleBtn = (
-    <button
+    <a
       key="g"
-      type="button"
-      onClick={addGoogle}
-      disabled={busy}
-      className={`flex-1 rounded-xl px-4 py-3 text-[15px] font-semibold shadow-sm transition disabled:opacity-60 ${
+      href={googleCalendarHref(pieces)}
+      target="_blank"
+      rel="noreferrer"
+      onClick={() => pick("google")}
+      className={`flex-1 rounded-xl px-4 py-3 text-center text-[15px] font-semibold shadow-sm transition ${
         googleFirst
           ? "bg-brand text-white hover:bg-brand-600"
           : "bg-surface text-foreground ring-1 ring-border hover:bg-slate-50"
       }`}
     >
       Add to Google Calendar
-    </button>
+    </a>
   );
   const appleBtn = (
-    <button
+    <a
       key="a"
-      type="button"
-      onClick={addApple}
-      disabled={busy}
-      className={`flex-1 rounded-xl px-4 py-3 text-[15px] font-semibold shadow-sm transition disabled:opacity-60 ${
+      href={appleIcsHref(pieces, eventUid)}
+      onClick={() => pick("apple")}
+      className={`flex-1 rounded-xl px-4 py-3 text-center text-[15px] font-semibold shadow-sm transition ${
         !googleFirst
           ? "bg-brand text-white hover:bg-brand-600"
           : "bg-surface text-foreground ring-1 ring-border hover:bg-slate-50"
       }`}
     >
       Add to Apple Calendar
-    </button>
+    </a>
   );
 
   return (

@@ -14,8 +14,9 @@ function calStamp(d: Date): string {
   return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 }
 
-/** Open Google Calendar with the event prefilled, in a new tab. */
-export function openGoogleCalendar(e: CalEvent): void {
+/** A Google Calendar "add event" URL, for a real link (not window.open, which
+ *  is unreliable inside an installed home-screen app). */
+export function googleCalendarHref(e: CalEvent): string {
   const p = new URLSearchParams({
     action: "TEMPLATE",
     text: e.title,
@@ -23,13 +24,12 @@ export function openGoogleCalendar(e: CalEvent): void {
     details: e.description,
   });
   if (e.location) p.set("location", e.location);
-  window.open(`https://calendar.google.com/calendar/render?${p}`, "_blank");
+  return `https://calendar.google.com/calendar/render?${p.toString()}`;
 }
 
-/** Hand the event to Apple Calendar via a hosted .ics link. iOS opens a real
- *  text/calendar URL straight into its "Add Event" sheet, which a data URL or
- *  blob download inside a web view often won't. */
-export function openAppleCalendar(e: CalEvent, uid: string): void {
+/** A hosted single-event .ics URL. Tapped as a real link, iOS opens it into
+ *  the Calendar "Add Event" sheet right over the app. */
+export function appleIcsHref(e: CalEvent, uid: string): string {
   const p = new URLSearchParams({
     title: e.title,
     start: e.start.toISOString(),
@@ -38,5 +38,5 @@ export function openAppleCalendar(e: CalEvent, uid: string): void {
     uid,
   });
   if (e.location) p.set("loc", e.location);
-  window.open(`/api/ics?${p.toString()}`, "_blank");
+  return `/api/ics?${p.toString()}`;
 }
