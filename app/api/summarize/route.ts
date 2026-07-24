@@ -15,21 +15,43 @@ Fields:
 - "customerRequests": specific things the CUSTOMER asked for or wants (e.g. "wants a quote for a new water heater", "call before arriving", "prefers morning visits", "asked us to look at the upstairs sink next time"). Only include real requests stated in the note. Empty array if none.
 - "customer": an object with the CLIENT's contact details IF the technician stated them in the note: { "name": "", "phone": "", "email": "", "address": "" }. Fill only fields explicitly mentioned (e.g. "I'm at the Johnsons, 45 Oak Street" gives name "Johnson" and address "45 Oak Street"). Leave any unmentioned field as an empty string. Never invent contact details.
 - "customerMessage": a short, warm, professional paragraph addressed to the HOMEOWNER. It MUST open with a greeting from the technician by name, like "Hi, it's {TECH_NAME}. Thanks again for letting me help you today." then summarize what was done and any next steps, in plain language (no jargon). Weave any customerRequests into flowing sentences so the customer knows they were heard, e.g. "As you asked during the visit, we'll schedule the next visit for Tuesday morning and bring extra drop cloths." Never use bullet points or lists in this message. Never mention parts or items the technician plans to buy, order, or pick up; purchases are internal notes, not customer information. NEVER include any phone number or email address in this message, not the customer's and not the technician's; the app appends the technician's own contact details separately.
+- "nextVisit": an object { "date": "", "time": "" } for the next appointment IF the technician stated a specific day or time to come back or call ("come back next Friday at 5", "schedule for Tuesday morning", "in two weeks at 9am"). Resolve anything relative against TODAY (given below): "date" is a strict YYYY-MM-DD, "time" is a strict 24-hour HH:MM. If only a day is stated, fill "date" and leave "time" empty; if only a time, fill "time" and leave "date" empty. If no follow-up day or time was stated, leave both empty. Never invent a date or time.
 
 CRITICAL:
 - NEVER use em dashes (—) in any field. Use commas or separate sentences.
 - NEVER address the technician, NEVER ask for clarification, and NEVER apologize or mention "transcript", "error", or "unclear". You are a silent formatting tool, not a chat assistant.
 - Only include information present in the transcript. Never invent parts, prices, names, or dates.
 - If the note is short or rough, still fill the fields with whatever was actually said. Do not comment on the quality of the input.
-- Respond with ONLY a JSON object with keys: jobTitle, workDone, partsAndMaterials, nextSteps, customerRequests, customerMessage.`;
+- Respond with ONLY a JSON object with keys: jobTitle, workDone, partsAndMaterials, nextSteps, customerRequests, customerMessage, customer, nextVisit.`;
+
+/** Snap a spoken "HH:MM" to the nearest 5 minutes so it exists in the picker;
+ *  empty string if it isn't a valid time. */
+function snapTime(t: string): string {
+  if (!/^\d{1,2}:\d{2}$/.test(t)) return "";
+  const [h, m] = t.split(":").map(Number);
+  if (h < 0 || h > 23 || m < 0 || m > 59) return "";
+  let mins = Math.round(m / 5) * 5;
+  let hour = h;
+  if (mins === 60) {
+    mins = 0;
+    hour = (hour + 1) % 24;
+  }
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(hour)}:${pad(mins)}`;
+}
 
 export async function POST(request: Request) {
   try {
-    const { transcript, techName } = await request.json();
+    const { transcript, techName, today } = await request.json();
 
     if (typeof transcript !== "string" || transcript.trim().length === 0) {
       return Response.json({ error: "No transcript provided." }, { status: 400 });
     }
+
+    const todayNote =
+      typeof today === "string" && today.trim()
+        ? `TODAY is ${today.trim()}. Resolve any relative day or time in nextVisit against it.`
+        : "";
 
     const name =
       typeof techName === "string" ? techName.trim().slice(0, 60) : "";
@@ -54,7 +76,7 @@ export async function POST(request: Request) {
         { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
-          content: `${greetingNote}${styleNote}\n\nTranscript:\n"""${transcript.trim()}"""\n\nReturn the JSON object.`,
+          content: `${greetingNote}${styleNote}\n\n${todayNote}\n\nTranscript:\n"""${transcript.trim()}"""\n\nReturn the JSON object.`,
         },
       ],
     });
@@ -86,7 +108,16 @@ export async function POST(request: Request) {
         }
       : { name: "", phone: "", email: "", address: "" };
 
-    return Response.json({ summary, customer });
+    // A specific follow-up day/time the tech named, for prefilling step 4.
+    const nv = (parsed as { nextVisit?: Record<string, unknown> }).nextVisit;
+    const rawDate = str(nv?.date);
+    const rawTime = str(nv?.time);
+    const nextVisit = {
+      date: /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : "",
+      time: snapTime(rawTime),
+    };
+
+    return Response.json({ summary, customer, nextVisit });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Summarization failed.";
     console.error("[summarize]", message);
