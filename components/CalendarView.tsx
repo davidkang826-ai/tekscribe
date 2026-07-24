@@ -16,8 +16,8 @@ import AddressInput from "./AddressInput";
 import { contactsAvailable, pickContact } from "@/lib/contacts";
 import { formatPhone } from "@/lib/phone";
 import {
-  openGoogleCalendar,
-  openAppleCalendar,
+  googleCalendarHref,
+  appleIcsHref,
   type CalEvent,
 } from "@/lib/calendar-links";
 
@@ -325,16 +325,14 @@ export default function CalendarView() {
     loadMonth();
   }
 
-  function addPostSaveTo(which: "google" | "apple") {
-    if (!postSave) return;
+  function pickPostSave(which: "google" | "apple") {
     try {
       localStorage.setItem("tekscribe.calendar-pref", which);
     } catch {
       // fine
     }
-    if (which === "google") openGoogleCalendar(postSave.event);
-    else openAppleCalendar(postSave.event, postSave.uid);
-    setPostSave(null);
+    // Let the link's own navigation open the calendar first, then dismiss.
+    setTimeout(() => setPostSave(null), 400);
   }
 
   async function remove(id: string) {
@@ -641,11 +639,17 @@ export default function CalendarView() {
               ? (["apple", "google"] as const)
               : (["google", "apple"] as const)
             ).map((which, i) => (
-              <button
+              <a
                 key={which}
-                type="button"
-                onClick={() => addPostSaveTo(which)}
-                className={`flex-1 rounded-xl px-4 py-3 text-[15px] font-semibold shadow-sm transition ${
+                href={
+                  which === "google"
+                    ? googleCalendarHref(postSave.event)
+                    : appleIcsHref(postSave.event, postSave.uid)
+                }
+                target={which === "google" ? "_blank" : undefined}
+                rel={which === "google" ? "noreferrer" : undefined}
+                onClick={() => pickPostSave(which)}
+                className={`flex-1 rounded-xl px-4 py-3 text-center text-[15px] font-semibold shadow-sm transition ${
                   i === 0
                     ? "bg-brand text-white hover:bg-brand-600"
                     : "bg-surface text-foreground ring-1 ring-border hover:bg-slate-50"
@@ -654,7 +658,7 @@ export default function CalendarView() {
                 {which === "google"
                   ? "Add to Google Calendar"
                   : "Add to Apple Calendar"}
-              </button>
+              </a>
             ))}
           </div>
           <div className="mt-3 text-center">

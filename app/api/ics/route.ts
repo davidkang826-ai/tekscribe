@@ -50,7 +50,9 @@ export function GET(req: Request) {
   return new Response(lines, {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="visit.ics"',
+      // inline (not attachment) so iOS shows the "Add Event" sheet instead of
+      // saving a file the tech then has to find and open.
+      "Content-Disposition": 'inline; filename="visit.ics"',
       "Cache-Control": "no-store",
     },
   });
