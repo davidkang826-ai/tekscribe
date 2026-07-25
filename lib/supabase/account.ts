@@ -19,18 +19,57 @@ export async function deleteAccount(): Promise<void> {
   if (!user) redirect("/login");
   const userId = user.id;
 
-  // 1. Cancel any active subscription so they stop being billed (best effort).
+  // 1. Stop all billing before deleting anything, so they can never be charged
+  //    after their account is gone.
+  let prof: {
+    stripe_subscription_id?: string | null;
+    stripe_customer_id?: string | null;
+  } | null = null;
   try {
-    const { data: prof } = await supabase
+    const res = await supabase
       .from("profiles")
-      .select("stripe_subscription_id")
+      .select("stripe_subscription_id, stripe_customer_id")
       .eq("id", userId)
       .maybeSingle();
-    if (isStripeConfigured && prof?.stripe_subscription_id) {
-      await getStripe().subscriptions.cancel(prof.stripe_subscription_id);
-    }
+    prof = res.data;
   } catch (err) {
-    console.error("[deleteAccount] cancel subscription", err);
+    console.error("[deleteAccount] read billing", err);
+  }
+
+  if (isStripeConfigured && (prof?.stripe_customer_id || prof?.stripe_subscription_id)) {
+    const stripe = getStripe();
+    let stopped = false;
+
+    // Deleting the customer cancels every subscription they have and removes
+    // their billing record from Stripe in one shot, the most complete way to
+    // guarantee no further charges (and cleaner for their data).
+    if (prof.stripe_customer_id) {
+      try {
+        await stripe.customers.del(prof.stripe_customer_id);
+        stopped = true;
+      } catch (err) {
+        console.error("[deleteAccount] delete customer", err);
+      }
+    }
+
+    // Fallback: if we couldn't delete the customer, at least cancel the known
+    // subscription directly.
+    if (!stopped && prof.stripe_subscription_id) {
+      try {
+        await stripe.subscriptions.cancel(prof.stripe_subscription_id);
+        stopped = true;
+      } catch (err) {
+        console.error("[deleteAccount] cancel subscription", err);
+      }
+    }
+
+    // If they had billing set up and we could not stop it, do NOT delete the
+    // account. Better they retry than lose the account while still being
+    // charged with no way to manage it. (redirect() is outside any try/catch
+    // so it isn't swallowed.)
+    if (!stopped) {
+      redirect("/settings?deleteError=billing");
+    }
   }
 
   const admin = createAdminClient();
