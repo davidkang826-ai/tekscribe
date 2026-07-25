@@ -476,7 +476,14 @@ export default function Recorder({
     const ext = blob.type.includes("mp4") ? "mp4" : "webm";
     const form = new FormData();
     form.append("audio", blob, `note.${ext}`);
-    const res = await fetch("/api/transcribe", { method: "POST", body: form });
+    // A ceiling so a stalled upload or a hung server can't spin forever; the
+    // user lands on the retry screen instead. Covers upload time plus the
+    // server's own 60s cap.
+    const res = await fetch("/api/transcribe", {
+      method: "POST",
+      body: form,
+      signal: AbortSignal.timeout(90000),
+    });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       const e = new Error(
@@ -508,8 +515,11 @@ export default function Recorder({
       setPhase("transcript");
     } catch (err) {
       const isServer = (err as { server?: boolean })?.server === true;
+      const timedOut =
+        err instanceof DOMException && err.name === "TimeoutError";
       const offline =
-        !navigator.onLine || (!isServer && err instanceof TypeError);
+        !navigator.onLine ||
+        (!isServer && !timedOut && err instanceof TypeError);
       if (offline) {
         if (!queueId) {
           try {
@@ -526,7 +536,13 @@ export default function Recorder({
         await refreshPending();
         setPhase("offlineSaved");
       } else {
-        setError(err instanceof Error ? err.message : "Transcription failed.");
+        setError(
+          timedOut
+            ? "That took too long, but your recording is safe. Tap to try again."
+            : err instanceof Error
+              ? err.message
+              : "Transcription failed."
+        );
         setPhase("transcribeError");
       }
     }
