@@ -322,6 +322,19 @@ export default function ScheduleNextVisit({
           {googleFirst ? [googleBtn, appleBtn] : [appleBtn, googleBtn]}
         </div>
 
+        {/* Save it to the app's own calendar (the Calendar tab / digest)
+            without opening the phone's calendar. */}
+        <button
+          type="button"
+          onClick={() => {
+            void saveToDigest(pieces.start);
+            onDone();
+          }}
+          className="mt-2 w-full rounded-xl bg-brand-50 px-4 py-3 text-[15px] font-semibold text-brand ring-1 ring-brand/20 hover:bg-brand-100 transition"
+        >
+          Add to TekScribe calendar only
+        </button>
+
         <div className="mt-3 text-center">
           <button
             type="button"

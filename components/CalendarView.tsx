@@ -20,6 +20,15 @@ import {
   appleIcsHref,
   type CalEvent,
 } from "@/lib/calendar-links";
+import type { JobSummary } from "@/lib/types";
+
+/** One tight line from a couple of bullet fragments, for "Last time". */
+function oneLine(items: string[] | undefined, max = 2): string {
+  return (items ?? [])
+    .slice(0, max)
+    .map((s) => s.trim().replace(/\.+$/, ""))
+    .join("; ");
+}
 
 type Visit = {
   id: string;
@@ -108,6 +117,33 @@ export default function CalendarView() {
 
   const [canUseContacts, setCanUseContacts] = useState(false);
   useEffect(() => setCanUseContacts(contactsAvailable()), []);
+
+  // Most recent past note per customer (matched case-insensitively), so the
+  // day view can show "Last time" like the old digest did.
+  const [lastByName, setLastByName] = useState<Map<string, JobSummary>>(
+    new Map()
+  );
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("voice_notes")
+        .select("customer_name, summary, created_at")
+        .order("created_at", { ascending: false });
+      if (cancelled) return;
+      const map = new Map<string, JobSummary>();
+      for (const n of data ?? []) {
+        const key = (n.customer_name as string | null)?.trim().toLowerCase();
+        if (!key || map.has(key)) continue;
+        if (n.summary) map.set(key, n.summary as JobSummary);
+      }
+      setLastByName(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // The create/edit form and the sync options both open in panels near the
   // bottom of the page. Scroll them into view when they open so a tap doesn't
@@ -423,11 +459,16 @@ export default function CalendarView() {
       {/* Selected day */}
       <div className="mt-5 flex items-center justify-between">
         <h2 className="text-[15px] font-semibold text-foreground">
-          {selected.toLocaleDateString(undefined, {
-            weekday: "long",
-            month: "long",
-            day: "numeric",
-          })}
+          {ymd(selected) === ymd(today)
+            ? `Today, ${selected.toLocaleDateString(undefined, {
+                month: "long",
+                day: "numeric",
+              })}`
+            : selected.toLocaleDateString(undefined, {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+              })}
         </h2>
         <button
           type="button"
@@ -459,6 +500,14 @@ export default function CalendarView() {
             const isCall = v.kind === "call";
             const address = v.address || contact?.address || null;
             const phone = v.phone || contact?.phone || null;
+            // Digest context: what happened on this customer's last visit.
+            const lkey = v.customer_name?.trim().toLowerCase();
+            const last = lkey ? lastByName.get(lkey) : undefined;
+            const lastLine = last ? oneLine(last.workDone, 2) : "";
+            const bring =
+              last?.nextSteps
+                ?.filter((x) => /^buy\s*:/i.test(x.trim()))
+                .map((x) => x.replace(/^buy\s*:\s*/i, "")) ?? [];
             return (
               <li
                 key={v.id}
@@ -509,6 +558,19 @@ export default function CalendarView() {
 
                 {v.todo && (
                   <p className="mt-1.5 text-[15px] text-foreground">{v.todo}</p>
+                )}
+                {lastLine && (
+                  <p className="mt-1.5 text-[13px] text-muted">
+                    <span className="font-medium text-foreground">
+                      Last time:
+                    </span>{" "}
+                    {lastLine}
+                  </p>
+                )}
+                {bring.length > 0 && (
+                  <p className="mt-1 text-[13px] text-muted">
+                    🧰 Bring: {bring.join(", ")}
+                  </p>
                 )}
 
                 <div className="mt-2 flex gap-4 text-[13px] font-medium">
