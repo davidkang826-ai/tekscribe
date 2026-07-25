@@ -144,8 +144,9 @@ export default async function SettingsPage(props: {
         )}
         {deleteError && (
           <div className="rounded-lg bg-red-50 px-3 py-2.5 text-[15px] text-danger ring-1 ring-red-100">
-            Couldn&apos;t delete your account just now. Try again, or contact
-            support.
+            {deleteError === "billing"
+              ? "We couldn't cancel your subscription just now, so we didn't delete your account, to make sure you're never charged after leaving. Please try again in a moment."
+              : "Couldn't delete your account just now. Try again, or contact support."}
           </div>
         )}
 
