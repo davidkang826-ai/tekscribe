@@ -3,7 +3,9 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { notifyNewSignup } from "@/lib/notify";
 
 export type AuthState = { error?: string; ok?: boolean };
 
@@ -38,6 +40,11 @@ export async function signUp(
   });
 
   if (error) return { error: error.message };
+
+  // Let the owner know a new account signed up, after the response is sent so
+  // it never slows down or blocks the signup itself.
+  after(() => notifyNewSignup({ email, businessName }));
+
   redirect("/verify-email");
 }
 
