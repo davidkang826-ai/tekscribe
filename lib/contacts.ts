@@ -1,8 +1,9 @@
-// Bridge to the native iPhone/Android address book via Capacitor's plugin
-// registry. We reach the plugin through registerPlugin (from @capacitor/core,
-// already a dependency) rather than importing @capacitor-community/contacts,
-// so the web build never needs that package. The native code is pulled in on
-// the Mac via `npm install @capacitor-community/contacts` + `npx cap sync`.
+// Bridge to the phone's address book. Two routes:
+//   1. Native app (Capacitor): the @capacitor-community/contacts plugin,
+//      reached via registerPlugin so the web build never needs the package.
+//   2. Browser: the Web Contact Picker API (navigator.contacts). This exists
+//      on Chrome for Android; iOS Safari has no web contacts API, so on an
+//      iPhone the address book is only reachable from the native App Store app.
 
 import { Capacitor, registerPlugin } from "@capacitor/core";
 
@@ -32,8 +33,34 @@ interface ContactsPlugin {
   }): Promise<{ contact: RawContact }>;
 }
 
-/** True only inside the native app, where the address book exists. */
-export function contactsAvailable(): boolean {
+// --- Web Contact Picker API (Android Chrome) ------------------------------
+type WebContactsManager = {
+  select(
+    props: string[],
+    opts: { multiple: boolean }
+  ): Promise<
+    Array<{
+      name?: string[];
+      tel?: string[];
+      email?: string[];
+      address?: Array<{
+        addressLine?: string[];
+        city?: string;
+        region?: string;
+        postalCode?: string;
+      }>;
+    }>
+  >;
+  getProperties?(): Promise<string[]>;
+};
+
+function webContacts(): WebContactsManager | null {
+  if (typeof navigator === "undefined") return null;
+  const c = (navigator as unknown as { contacts?: WebContactsManager }).contacts;
+  return c && typeof c.select === "function" ? c : null;
+}
+
+function isNative(): boolean {
   try {
     return Capacitor.isNativePlatform();
   } catch {
@@ -41,29 +68,69 @@ export function contactsAvailable(): boolean {
   }
 }
 
-/** Open the native contact picker and return the chosen contact's details,
+/** True where a phone address book can be reached: the native app, or a
+ *  browser that supports the Web Contact Picker (Android Chrome). */
+export function contactsAvailable(): boolean {
+  return isNative() || webContacts() !== null;
+}
+
+/** Open the phone's contact picker and return the chosen contact's details,
  *  or null if unavailable, denied, or cancelled. */
 export async function pickContact(): Promise<PickedContact | null> {
-  if (!contactsAvailable()) return null;
+  // Native app: the Capacitor plugin.
+  if (isNative()) {
+    try {
+      const Contacts = registerPlugin<ContactsPlugin>("Contacts");
+      await Contacts.requestPermissions();
+      const { contact } = await Contacts.pickContact({
+        projection: {
+          name: true,
+          phones: true,
+          emails: true,
+          postalAddresses: true,
+        },
+      });
+      const a = contact.postalAddresses?.[0];
+      const address = a
+        ? [a.street, a.city, a.region, a.postalCode].filter(Boolean).join(", ")
+        : "";
+      return {
+        name: contact.name?.display ?? "",
+        phone: contact.phones?.[0]?.number ?? "",
+        email: contact.emails?.[0]?.address ?? "",
+        address,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // Browser (Android Chrome): the Web Contact Picker API.
+  const wc = webContacts();
+  if (!wc) return null;
   try {
-    const Contacts = registerPlugin<ContactsPlugin>("Contacts");
-    await Contacts.requestPermissions();
-    const { contact } = await Contacts.pickContact({
-      projection: {
-        name: true,
-        phones: true,
-        emails: true,
-        postalAddresses: true,
-      },
-    });
-    const a = contact.postalAddresses?.[0];
+    const want = ["name", "tel", "email", "address"];
+    let props = want;
+    if (wc.getProperties) {
+      const supported = await wc.getProperties().catch(() => [] as string[]);
+      if (supported.length) {
+        props = want.filter((p) => supported.includes(p));
+        if (!props.length) props = ["name", "tel"];
+      }
+    }
+    const results = await wc.select(props, { multiple: false });
+    const r = results?.[0];
+    if (!r) return null;
+    const a = r.address?.[0];
     const address = a
-      ? [a.street, a.city, a.region, a.postalCode].filter(Boolean).join(", ")
+      ? [(a.addressLine ?? []).join(" "), a.city, a.region, a.postalCode]
+          .filter(Boolean)
+          .join(", ")
       : "";
     return {
-      name: contact.name?.display ?? "",
-      phone: contact.phones?.[0]?.number ?? "",
-      email: contact.emails?.[0]?.address ?? "",
+      name: r.name?.[0] ?? "",
+      phone: r.tel?.[0] ?? "",
+      email: r.email?.[0] ?? "",
       address,
     };
   } catch {
