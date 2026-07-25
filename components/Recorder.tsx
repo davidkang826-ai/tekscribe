@@ -56,6 +56,10 @@ type Phase =
 // schedule the next visit, then done.
 type ReviewStep = "confirm" | "send" | "schedule" | "done";
 
+// Where an in-progress note is stashed so switching tabs and coming back
+// resumes it instead of losing the work.
+const DRAFT_KEY = "tekscribe.draft";
+
 type Attach = Attachment & { preview?: string };
 
 const STEP_LABELS = [
@@ -240,6 +244,11 @@ export default function Recorder({
   }, [phase, reviewStep]);
 
   const resetAll = () => {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      // ignore
+    }
     setTranscript("");
     setSummary(null);
     setNoteId(null);
@@ -315,6 +324,83 @@ export default function Recorder({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Keep an in-progress note (transcript or review) so leaving the Record tab
+  // and coming back continues where they left off, instead of losing it.
+  const draftRestored = useRef(false);
+  useEffect(() => {
+    if (draftRestored.current) return;
+    draftRestored.current = true;
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d.phase !== "transcript" && d.phase !== "summarized") return;
+      if (typeof d.transcript === "string") setTranscript(d.transcript);
+      if (d.summary) setSummary(d.summary);
+      setCustomerName(d.customerName || "");
+      setCustomerEmail(d.customerEmail || "");
+      setCustomerPhone(d.customerPhone || "");
+      setCustomerAddress(d.customerAddress || "");
+      setNoteId(d.noteId ?? null);
+      if (Array.isArray(d.attachments)) setAttachments(d.attachments);
+      if (d.suggestedVisit) setSuggestedVisit(d.suggestedVisit);
+      if (d.reviewStep) setReviewStep(d.reviewStep);
+      setArchiveState(d.noteId ? "saved" : "idle");
+      setPhase(d.phase);
+    } catch {
+      // ignore a corrupt draft
+    }
+  }, []);
+
+  // Sync that draft as the note changes; clear it once idle, finished, or
+  // discarded. Skips its first run so it can't wipe the draft before restore.
+  const draftReady = useRef(false);
+  useEffect(() => {
+    if (!draftReady.current) {
+      draftReady.current = true;
+      return;
+    }
+    try {
+      const keep =
+        phase === "transcript" ||
+        (phase === "summarized" && reviewStep !== "done");
+      if (keep) {
+        localStorage.setItem(
+          DRAFT_KEY,
+          JSON.stringify({
+            phase,
+            reviewStep,
+            transcript,
+            summary,
+            customerName,
+            customerEmail,
+            customerPhone,
+            customerAddress,
+            noteId,
+            attachments,
+            suggestedVisit,
+          })
+        );
+      } else {
+        localStorage.removeItem(DRAFT_KEY);
+      }
+    } catch {
+      // ignore storage errors (private mode, quota)
+    }
+  }, [
+    phase,
+    reviewStep,
+    transcript,
+    summary,
+    customerName,
+    customerEmail,
+    customerPhone,
+    customerAddress,
+    noteId,
+    attachments,
+    suggestedVisit,
+  ]);
+
   // Recall a saved customer. If several share the name, let them pick by email.
   function onCustomerName(value: string) {
     setCustomerName(value);
@@ -347,6 +433,22 @@ export default function Recorder({
     setReturnPhase(from);
     setPhase("confirmDelete");
   };
+
+  // Discard the current recording and go back to the start. If it was already
+  // saved (steps 3-4), remove it from the archive too so "delete" means gone.
+  async function discardNote() {
+    const id = noteId;
+    resetAll();
+    setPhase("idle");
+    if (id) {
+      try {
+        const supabase = createClient();
+        await supabase.from("voice_notes").delete().eq("id", id);
+      } catch {
+        // best effort; the archive's own delete can clean it up later
+      }
+    }
+  }
 
   const startRecording = useCallback(async () => {
     resetAll();
@@ -1281,10 +1383,7 @@ export default function Recorder({
           <p className="text-[15px] text-muted mt-1 mb-4">This can&apos;t be undone.</p>
           <div className="flex justify-center gap-3">
             <button
-              onClick={() => {
-                resetAll();
-                setPhase("idle");
-              }}
+              onClick={discardNote}
               className="tt-pop inline-flex items-center justify-center rounded-lg bg-danger px-8 py-2.5 text-white font-medium text-[15px] shadow-sm hover:opacity-90 transition"
             >
               Yes
@@ -1644,24 +1743,42 @@ export default function Recorder({
                         >
                           I&apos;m done
                         </button>
+                        <div className="mt-3">
+                          <button
+                            onClick={() => askDelete("summarized")}
+                            className="text-[13px] font-medium text-danger hover:underline"
+                          >
+                            Delete recording
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
 
                   {/* Step 4: offer to put the next visit on the calendar */}
                   {reviewStep === "schedule" && (
-                    <ScheduleNextVisit
-                      customerName={customerName}
-                      customerAddress={customerAddress}
-                      customerPhone={customerPhone}
-                      jobTitle={summary.jobTitle}
-                      nextSteps={summary.nextSteps}
-                      customerRequests={summary.customerRequests}
-                      noteId={noteId}
-                      suggestedDate={suggestedVisit?.date}
-                      suggestedTime={suggestedVisit?.time}
-                      onDone={() => setReviewStep("done")}
-                    />
+                    <>
+                      <ScheduleNextVisit
+                        customerName={customerName}
+                        customerAddress={customerAddress}
+                        customerPhone={customerPhone}
+                        jobTitle={summary.jobTitle}
+                        nextSteps={summary.nextSteps}
+                        customerRequests={summary.customerRequests}
+                        noteId={noteId}
+                        suggestedDate={suggestedVisit?.date}
+                        suggestedTime={suggestedVisit?.time}
+                        onDone={() => setReviewStep("done")}
+                      />
+                      <div className="mt-3 text-center">
+                        <button
+                          onClick={() => askDelete("summarized")}
+                          className="text-[13px] font-medium text-danger hover:underline"
+                        >
+                          Delete recording
+                        </button>
+                      </div>
+                    </>
                   )}
                 </div>
               )}
