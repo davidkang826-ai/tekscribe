@@ -1,8 +1,34 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextRequest, after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { notifyNewAccount } from "@/lib/notify";
 
 export const runtime = "nodejs";
+
+/** Tell the owner a new account just confirmed its email. Best-effort. */
+async function alertConfirmed(supabase: SupabaseClient) {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+    let businessName = "";
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("business_name")
+        .eq("id", user.id)
+        .maybeSingle();
+      businessName = (data?.business_name as string) ?? "";
+    } catch {
+      // profile not readable; send with just the email
+    }
+    await notifyNewAccount({ email: user.email ?? "", businessName });
+  } catch (err) {
+    console.error("[confirm] alertConfirmed", err);
+  }
+}
 
 /**
  * Handles the link in the verification email. Supports both Supabase email
@@ -20,10 +46,22 @@ export async function GET(request: NextRequest) {
 
   if (tokenHash && type) {
     const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
-    if (!error) return NextResponse.redirect(`${origin}${next}`);
+    if (!error) {
+      // Only a signup confirmation is a "new account" (not recovery or an
+      // email change).
+      if (type === "signup") after(() => alertConfirmed(supabase));
+      return NextResponse.redirect(`${origin}${next}`);
+    }
   } else if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) return NextResponse.redirect(`${origin}${next}`);
+    if (!error) {
+      // The code exchange is the signup-confirmation path; recovery uses a
+      // separate OTP flow. Guard on the destination to be safe.
+      if (!next.startsWith("/reset-password")) {
+        after(() => alertConfirmed(supabase));
+      }
+      return NextResponse.redirect(`${origin}${next}`);
+    }
   }
 
   // The token was consumed or expired (mail apps pre-open links to scan

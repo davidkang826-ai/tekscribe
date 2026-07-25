@@ -1,7 +1,8 @@
 import type Stripe from "stripe";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { planIdForPrice } from "@/lib/plans";
+import { planIdForPrice, planById } from "@/lib/plans";
+import { notifyPaidUpgrade } from "@/lib/notify";
 
 export const runtime = "nodejs";
 
@@ -53,6 +54,17 @@ export async function POST(req: Request) {
                 : s.subscription?.id ?? null,
           })
           .eq("id", userId);
+
+        // Tell the owner about the paid upgrade (best effort).
+        try {
+          const planName =
+            planById(s.metadata?.planId || "pro")?.name ?? "Pro";
+          const email =
+            s.customer_details?.email || s.customer_email || "";
+          await notifyPaidUpgrade({ email, planName });
+        } catch (err) {
+          console.error("[stripe webhook] upgrade notify", err);
+        }
       }
     } else if (
       event.type === "customer.subscription.updated" ||

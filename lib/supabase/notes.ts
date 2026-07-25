@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { syncNoteToDrive } from "@/lib/drive-sync";
 import { planById } from "@/lib/plans";
 import { resolvePlan, type PlanFields } from "@/lib/plan-resolve";
+import { notifyFirstNote } from "@/lib/notify";
 import type { JobSummary, Attachment } from "@/lib/types";
 
 export type SaveResult = { error?: string; id?: string; limitReached?: boolean };
@@ -134,6 +135,26 @@ export async function saveNote(input: {
   const userId = user.id;
   const savedId = data.id as string;
   after(() => syncNoteToDrive(userId, savedId, input));
+
+  // First note ever? Alert the owner. The just-saved note is the only one when
+  // the all-time count is 1.
+  try {
+    const { count } = await supabase
+      .from("voice_notes")
+      .select("id", { count: "exact", head: true });
+    if (count === 1) {
+      const email = user.email ?? "";
+      after(() =>
+        notifyFirstNote({
+          email,
+          jobTitle: input.summary?.jobTitle,
+          customerName: input.customerName,
+        })
+      );
+    }
+  } catch {
+    // best effort; never block saving
+  }
 
   return { id: savedId };
 }
