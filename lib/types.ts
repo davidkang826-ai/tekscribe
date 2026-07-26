@@ -20,6 +20,15 @@ export type Customer = {
   address?: string | null;
 };
 
+/** A saved contact in the tech's directory, with its row id for edit/delete. */
+export type Contact = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+};
+
 export type Attachment = {
   path: string; // storage path in the visit-media bucket
   name: string;

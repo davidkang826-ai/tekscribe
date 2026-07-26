@@ -64,6 +64,27 @@ function GearIcon() {
   );
 }
 
+function ContactsIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="23"
+      height="23"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3.5 20a5.5 5.5 0 0 1 11 0" />
+      <path d="M16 3.6a3.2 3.2 0 0 1 0 6.2" />
+      <path d="M17.5 14.3A5.5 5.5 0 0 1 20.5 19" />
+    </svg>
+  );
+}
+
 function CalendarIcon() {
   return (
     <svg
@@ -100,6 +121,12 @@ const TABS = [
     label: "Archive",
     Icon: NotesIcon,
     match: (p: string) => p.startsWith("/notes"),
+  },
+  {
+    href: "/contacts",
+    label: "Clients",
+    Icon: ContactsIcon,
+    match: (p: string) => p.startsWith("/contacts"),
   },
   {
     href: "/settings",

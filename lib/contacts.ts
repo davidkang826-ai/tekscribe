@@ -31,6 +31,23 @@ interface ContactsPlugin {
   pickContact(options: {
     projection: Record<string, boolean>;
   }): Promise<{ contact: RawContact }>;
+  getContacts?(options: {
+    projection: Record<string, boolean>;
+  }): Promise<{ contacts: RawContact[] }>;
+}
+
+/** Flatten one raw native contact into our simple shape. */
+function fromNative(contact: RawContact): PickedContact {
+  const a = contact.postalAddresses?.[0];
+  const address = a
+    ? [a.street, a.city, a.region, a.postalCode].filter(Boolean).join(", ")
+    : "";
+  return {
+    name: contact.name?.display ?? "",
+    phone: contact.phones?.[0]?.number ?? "",
+    email: contact.emails?.[0]?.address ?? "",
+    address,
+  };
 }
 
 // --- Web Contact Picker API (Android Chrome) ------------------------------
@@ -106,8 +123,45 @@ export async function pickContact(): Promise<PickedContact | null> {
   }
 
   // Browser (Android Chrome): the Web Contact Picker API.
+  const picked = await pickWebContacts(false);
+  return picked[0] ?? null;
+}
+
+/** Pick MANY contacts at once, for a one-time bulk import into the directory.
+ *  Returns [] if unavailable, denied, or cancelled. Works in the native app
+ *  and on browsers with the Web Contact Picker (Android Chrome); iOS Safari
+ *  has no web contacts API, so there it returns []. */
+export async function pickContacts(): Promise<PickedContact[]> {
+  // Native app: prefer bulk getContacts, fall back to a single pick.
+  if (isNative()) {
+    try {
+      const Contacts = registerPlugin<ContactsPlugin>("Contacts");
+      await Contacts.requestPermissions();
+      const projection = {
+        name: true,
+        phones: true,
+        emails: true,
+        postalAddresses: true,
+      };
+      if (Contacts.getContacts) {
+        const { contacts } = await Contacts.getContacts({ projection });
+        return (contacts ?? []).map(fromNative);
+      }
+      const { contact } = await Contacts.pickContact({ projection });
+      return [fromNative(contact)];
+    } catch {
+      return [];
+    }
+  }
+
+  // Browser (Android Chrome): the Web Contact Picker API, multiple.
+  return pickWebContacts(true);
+}
+
+/** Shared Web Contact Picker call for one or many contacts. */
+async function pickWebContacts(multiple: boolean): Promise<PickedContact[]> {
   const wc = webContacts();
-  if (!wc) return null;
+  if (!wc) return [];
   try {
     const want = ["name", "tel", "email", "address"];
     let props = want;
@@ -118,22 +172,22 @@ export async function pickContact(): Promise<PickedContact | null> {
         if (!props.length) props = ["name", "tel"];
       }
     }
-    const results = await wc.select(props, { multiple: false });
-    const r = results?.[0];
-    if (!r) return null;
-    const a = r.address?.[0];
-    const address = a
-      ? [(a.addressLine ?? []).join(" "), a.city, a.region, a.postalCode]
-          .filter(Boolean)
-          .join(", ")
-      : "";
-    return {
-      name: r.name?.[0] ?? "",
-      phone: r.tel?.[0] ?? "",
-      email: r.email?.[0] ?? "",
-      address,
-    };
+    const results = await wc.select(props, { multiple });
+    return (results ?? []).map((r) => {
+      const a = r.address?.[0];
+      const address = a
+        ? [(a.addressLine ?? []).join(" "), a.city, a.region, a.postalCode]
+            .filter(Boolean)
+            .join(", ")
+        : "";
+      return {
+        name: r.name?.[0] ?? "",
+        phone: r.tel?.[0] ?? "",
+        email: r.email?.[0] ?? "",
+        address,
+      };
+    });
   } catch {
-    return null;
+    return [];
   }
 }
